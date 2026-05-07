@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FileText, AlertTriangle, Clock, Building2, Eye, ExternalLink } from 'lucide-react'
+import { FileText, AlertTriangle, Clock, Building2, Eye, ExternalLink, FlaskConical } from 'lucide-react'
 import { KPICard } from '@/components/common/KPICard'
 import { RiskBadge } from '@/components/common/RiskBadge'
 import { ScoreCircle } from '@/components/common/ScoreCircle'
@@ -29,6 +29,7 @@ export function DashboardPage() {
   const { data: contratos, isLoading: contratosLoading } = useContratosPriorizados(dashboardFilters)
   const [selectedContrato, setSelectedContrato] = useState<Contrato | null>(null)
 
+  const isDemo = !statsLoading && !stats
   const displayStats = stats ?? MOCK_STATS
   const displayContratos = contratos?.data ?? MOCK_CONTRATOS
 
@@ -63,6 +64,13 @@ export function DashboardPage() {
           <h1 className="text-xl font-bold text-slate-800">Monitoreo de Riesgo Contractual</h1>
           <p className="text-sm text-slate-500 mt-0.5">Analiza y prioriza contratos públicos colombianos por señales de opacidad y riesgo — SECOP II</p>
         </div>
+
+        {isDemo && (
+          <div className="flex items-center gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
+            <FlaskConical className="w-4 h-4 text-amber-500 shrink-0" />
+            <span><strong>Modo demo:</strong> el backend no está disponible. Los datos mostrados son de ejemplo y no provienen de SECOP II.</span>
+          </div>
+        )}
 
         {statsLoading ? <LoadingSpinner /> : (
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">

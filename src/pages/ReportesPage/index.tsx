@@ -56,6 +56,11 @@ export function ReportesPage() {
   const [departamento, setDepartamento] = useState('')
   const [formato, setFormato] = useState('PDF')
   const [selectedReporte] = useState(true)
+  const [descargando, setDescargando] = useState(false)
+
+  const handleDescargar = () => {
+    window.open('/api/v1/reports/excel', '_blank')
+  }
 
   const donutData = [
     { name: 'Crítico', value: 12, color: RISK_COLORS['CRÍTICO'] },
@@ -209,8 +214,8 @@ export function ReportesPage() {
               <p className="text-xs text-slate-600 leading-relaxed">Se requiere atención inmediata en el sector de infraestructura. Se recomiendan auditorías cruzadas.</p>
             </div>
             <div className="space-y-2 pt-2 border-t border-slate-100">
-              <button className="w-full flex items-center justify-center gap-2 py-2 bg-blue-600 text-white text-xs rounded-lg font-medium hover:bg-blue-700">
-                <Download className="w-3.5 h-3.5" /> Descargar
+              <button onClick={handleDescargar} disabled={descargando} className="w-full flex items-center justify-center gap-2 py-2 bg-blue-600 text-white text-xs rounded-lg font-medium hover:bg-blue-700 disabled:opacity-60">
+                <Download className="w-3.5 h-3.5" /> {descargando ? 'Descargando...' : 'Descargar'}
               </button>
               <button className="w-full flex items-center justify-center gap-2 py-2 border border-slate-200 text-slate-600 text-xs rounded-lg font-medium hover:bg-slate-50">
                 <Share2 className="w-3.5 h-3.5" /> Compartir

@@ -47,7 +47,8 @@
       "Bash(python -c \"import sys, json; data = json.load\\(sys.stdin\\); print\\(f'Count: {len\\(data\\)}'\\)\")",
       "Bash(curl -s \"https://backend-contratos-q9z2.onrender.com/api/v1/entities/?skip=0&limit=500\")",
       "Bash(curl -s \"https://backend-contratos-q9z2.onrender.com/api/v1/entities/?skip=100&limit=100\")",
-      "Bash(curl -s \"https://backend-contratos-q9z2.onrender.com/api/v1/entities/?skip=0&limit=10000\")"
+      "Bash(curl -s \"https://backend-contratos-q9z2.onrender.com/api/v1/entities/?skip=0&limit=10000\")",
+      "Bash(curl *)"
     ]
   }
 }

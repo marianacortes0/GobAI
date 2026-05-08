@@ -7,12 +7,12 @@ import { LoadingSpinner } from '@/components/common/LoadingSpinner'
 import { DataTable, type Column } from '@/components/common/DataTable'
 import { DonutChart } from '@/components/charts/DonutChart'
 import { useDashboardStats, useContratosPriorizados } from '@/hooks/useDashboard'
+import { useEntidades } from '@/hooks/useEntidades'
 import { useFiltersStore } from '@/store/filters.store'
 import { DEPARTAMENTOS, MODALIDADES, RISK_COLORS } from '@/utils/constants'
 import { formatCurrency } from '@/utils/formatters'
 import type { Contrato } from '@/types/contrato.types'
 
-const ENTIDADES = ['Alcaldía de Bogotá', 'Gobernación Antioquia', 'IDU Bogotá', 'Min. Salud', 'SENA', 'DNP', 'Min. Educación']
 
 const MOCK_STATS = { totalContratos: 1248, riesgoAlto: 86, riesgoMedio: 241, entidadesMonitoreadas: 132, distribucionRiesgo: { critico: 12, alto: 74, medio: 241, bajo: 921 } }
 const MOCK_CONTRATOS: Contrato[] = [
@@ -27,6 +27,8 @@ export function DashboardPage() {
   const { dashboardFilters, setDashboardFilters } = useFiltersStore()
   const { data: stats, isLoading: statsLoading } = useDashboardStats()
   const { data: contratos, isLoading: contratosLoading } = useContratosPriorizados(dashboardFilters)
+  const { data: entidadesData } = useEntidades()
+  const entidades = entidadesData?.data ?? []
   const [selectedContrato, setSelectedContrato] = useState<Contrato | null>(null)
 
   const isDemo = !statsLoading && !stats
@@ -97,7 +99,7 @@ export function DashboardPage() {
             </select>
             <select value={dashboardFilters.entidad ?? ''} onChange={(e) => setDashboardFilters({ entidad: e.target.value || undefined })} className="px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 bg-white outline-none focus:border-blue-400">
               <option value="">Entidad</option>
-              {ENTIDADES.map(e => <option key={e} value={e}>{e}</option>)}
+              {entidades.map(e => <option key={e.nit} value={e.nombre}>{e.nombre}</option>)}
             </select>
             <select value={dashboardFilters.modalidad ?? ''} onChange={(e) => setDashboardFilters({ modalidad: e.target.value || undefined })} className="px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 bg-white outline-none focus:border-blue-400">
               <option value="">Modalidad</option>

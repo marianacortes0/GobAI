@@ -1,7 +1,11 @@
 {
     "rewrites": [
         {
-            "source": "/(.*)",
+            "source": "/api/:path*",
+            "destination": "https://backend-contratos-q9z2.onrender.com/api/:path*"
+        },
+        {
+            "source": "/((?!api/).*)",
             "destination": "/index.html"
         }
     ]

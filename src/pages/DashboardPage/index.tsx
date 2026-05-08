@@ -147,7 +147,7 @@ export function DashboardPage() {
               <FileText className="w-4 h-4 text-white" />
             </div>
             <div>
-              <p className="text-xl font-bold text-blue-700">{displayStats.totalContratos.toLocaleString()}</p>
+              <p className="text-xl font-bold text-blue-700">{(displayStats.totalContratos || 0).toLocaleString()}</p>
               <p className="text-xs text-blue-500">total contratos</p>
             </div>
           </div>

@@ -70,7 +70,7 @@ export function DataTable<T>({ columns, data, isLoading, onRowClick, selectedIte
       {pagination && totalPages > 1 && (
         <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100">
           <p className="text-xs text-slate-500">
-            {((pagination.page - 1) * pagination.limit) + 1}–{Math.min(pagination.page * pagination.limit, pagination.total)} de {pagination.total.toLocaleString()}
+            {((pagination.page - 1) * pagination.limit) + 1}–{Math.min(pagination.page * pagination.limit, pagination.total)} de {(pagination.total || 0).toLocaleString()}
           </p>
           <div className="flex items-center gap-1">
             <button

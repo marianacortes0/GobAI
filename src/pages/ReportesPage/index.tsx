@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BarChart3, Calendar, Download, Share2, Clock, FileText } from 'lucide-react'
+import { BarChart3, Calendar, Download, Share2, Clock, FileText, Loader } from 'lucide-react'
 import { KPICard } from '@/components/common/KPICard'
 import { ScoreCircle } from '@/components/common/ScoreCircle'
 import { DonutChart } from '@/components/charts/DonutChart'
@@ -7,6 +7,9 @@ import { HorizontalBarChart } from '@/components/charts/HorizontalBarChart'
 import { LineChart } from '@/components/charts/LineChart'
 import { RISK_COLORS, DEPARTAMENTOS } from '@/utils/constants'
 import { formatDate } from '@/utils/formatters'
+import { useReportes, useReporteStats, useGenerarReporte } from '@/hooks/useReportes'
+import { reportesService } from '@/services/reportes.service'
+import type { ReportType, ReportFormat, ReportPeriod } from '@/types/reporte.types'
 
 type TabId = 'resumen' | 'contratacion' | 'alertas' | 'ia' | 'historico'
 
@@ -42,24 +45,54 @@ const MOCK_REPORTE = {
     { titulo: 'Patrón textual', descripcion: '"Urgencia manifiesta" aparece 34 veces sin justificación', tipo: 'texto' },
     { titulo: 'Acción sugerida', descripcion: 'Priorizar auditoría en 3 entidades con mayor riesgo acumulado', tipo: 'accion' },
   ],
-  historialExportacion: [
-    { fecha: '2024-02-14', formato: 'PDF', usuario: 'Ana García' },
-    { fecha: '2024-02-10', formato: 'XLSX', usuario: 'Carlos López' },
-    { fecha: '2024-02-05', formato: 'PDF', usuario: 'Ana García' },
-  ],
 }
 
 export function ReportesPage() {
   const [activeTab, setActiveTab] = useState<TabId>('resumen')
-  const [tipo, setTipo] = useState('EJECUTIVO')
-  const [periodo, setPeriodo] = useState('MES')
+  const [tipo, setTipo] = useState<ReportType>('CONTRATACION')
+  const [periodo, setPeriodo] = useState<ReportPeriod>('MES')
   const [departamento, setDepartamento] = useState('')
-  const [formato, setFormato] = useState('PDF')
-  const [selectedReporte] = useState(true)
+  const [formato, setFormato] = useState<ReportFormat>('PDF')
   const [descargando, setDescargando] = useState(false)
+  const [copiado, setCopiado] = useState(false)
+  const [lastReporteId, setLastReporteId] = useState<number | null>(null)
 
-  const handleDescargar = () => {
-    window.open('/api/v1/reports/excel', '_blank')
+  const { data: stats, isLoading: statsLoading } = useReporteStats()
+  const { data: reportesData } = useReportes()
+  const { mutate: generarReporte, isPending: generando } = useGenerarReporte()
+
+  const handleGenerar = () => {
+    const nombre = `Reporte ${tipo} - ${periodo} ${new Date().toLocaleDateString('es-CO')}`
+    generarReporte(
+      { nombre, tipo, formato, periodo, cobertura: departamento || undefined },
+      { onSuccess: (r) => { setLastReporteId(r.id); setActiveTab('historico') } }
+    )
+  }
+
+  const handleDescargar = async () => {
+    setDescargando(true)
+    try {
+      let blob: Blob
+      if (lastReporteId) {
+        blob = await reportesService.descargar(lastReporteId)
+      } else {
+        blob = await reportesService.descargarExcel()
+      }
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = lastReporteId ? `reporte_${lastReporteId}.xlsx` : 'reporte_gobia.xlsx'
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setDescargando(false)
+    }
+  }
+
+  const handleCompartir = async () => {
+    await navigator.clipboard.writeText(window.location.href)
+    setCopiado(true)
+    setTimeout(() => setCopiado(false), 2000)
   }
 
   const donutData = [
@@ -77,6 +110,8 @@ export function ReportesPage() {
     { id: 'historico', label: 'Histórico' },
   ]
 
+  const reportesList = reportesData?.data ?? []
+
   return (
     <div className="flex gap-6">
       <div className="flex-1 min-w-0 space-y-5">
@@ -86,14 +121,18 @@ export function ReportesPage() {
           <div className="flex flex-wrap items-end gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1">Tipo</label>
-              <select value={tipo} onChange={(e) => setTipo(e.target.value)} className="px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-blue-400">
-                {['EJECUTIVO', 'DETALLADO', 'ALERTAS', 'CONTRATACION', 'IA'].map(t => <option key={t} value={t}>{t}</option>)}
+              <select value={tipo} onChange={(e) => setTipo(e.target.value as ReportType)} className="px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-blue-400">
+                <option value="CONTRATACION">CONTRATACIÓN</option>
+                <option value="ENTIDAD">ENTIDAD</option>
+                <option value="RIESGO">RIESGO</option>
               </select>
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1">Período</label>
-              <select value={periodo} onChange={(e) => setPeriodo(e.target.value)} className="px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-blue-400">
-                {['SEMANA', 'MES', 'TRIMESTRE', 'ANUAL'].map(p => <option key={p} value={p}>{p}</option>)}
+              <select value={periodo} onChange={(e) => setPeriodo(e.target.value as ReportPeriod)} className="px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-blue-400">
+                <option value="SEMANA">SEMANA</option>
+                <option value="MES">MES</option>
+                <option value="TRIMESTRE">TRIMESTRE</option>
               </select>
             </div>
             <div>
@@ -105,15 +144,21 @@ export function ReportesPage() {
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1">Formato</label>
-              <select value={formato} onChange={(e) => setFormato(e.target.value)} className="px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-blue-400">
-                {['PDF', 'XLSX', 'CSV'].map(f => <option key={f} value={f}>{f}</option>)}
+              <select value={formato} onChange={(e) => setFormato(e.target.value as ReportFormat)} className="px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-blue-400">
+                <option value="PDF">PDF</option>
+                <option value="XLSX">XLSX</option>
               </select>
             </div>
             <button className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50">
               <Calendar className="w-4 h-4" /> Programar
             </button>
-            <button className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700">
-              <BarChart3 className="w-4 h-4" /> Generar reporte
+            <button
+              onClick={handleGenerar}
+              disabled={generando}
+              className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-60"
+            >
+              {generando ? <Loader className="w-4 h-4 animate-spin" /> : <BarChart3 className="w-4 h-4" />}
+              {generando ? 'Generando...' : 'Generar reporte'}
             </button>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -125,10 +170,18 @@ export function ReportesPage() {
         </div>
 
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-          <KPICard title="Reportes generados" value={128} icon={FileText} />
-          <KPICard title="Programados" value={14} icon={Clock} iconBg="bg-orange-50" iconColor="text-orange-500" />
-          <KPICard title="Descargas" value={356} icon={Download} iconBg="bg-green-50" iconColor="text-green-500" />
-          <KPICard title="Riesgo promedio" value="61/100" icon={BarChart3} iconBg="bg-red-50" iconColor="text-red-500" valueColor="text-red-600" />
+          {statsLoading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-24 bg-slate-100 rounded-xl animate-pulse" />
+            ))
+          ) : (
+            <>
+              <KPICard title="Reportes generados" value={stats?.generados ?? 0} icon={FileText} />
+              <KPICard title="Programados" value={stats?.programados ?? 0} icon={Clock} iconBg="bg-orange-50" iconColor="text-orange-500" />
+              <KPICard title="Descargas" value={stats?.descargas ?? 0} icon={Download} iconBg="bg-green-50" iconColor="text-green-500" />
+              <KPICard title="Riesgo promedio" value={`${stats?.riesgoPromedio ?? 0}/100`} icon={BarChart3} iconBg="bg-red-50" iconColor="text-red-500" valueColor="text-red-600" />
+            </>
+          )}
         </div>
 
         <div className="flex border-b border-slate-200">
@@ -190,7 +243,42 @@ export function ReportesPage() {
               </div>
             </>
           )}
-          {activeTab !== 'resumen' && (
+
+          {activeTab === 'historico' && (
+            <div>
+              <h3 className="text-sm font-semibold text-slate-700 mb-3">Reportes generados</h3>
+              {reportesList.length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-8">No hay reportes generados aún.</p>
+              ) : (
+                <div className="space-y-2">
+                  {reportesList.map(r => (
+                    <div key={r.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+                      <div>
+                        <p className="text-sm font-medium text-slate-700">{r.nombre}</p>
+                        <p className="text-xs text-slate-400">{r.tipo} · {r.periodo} · {r.formato} · {formatDate(r.fechaGeneracion)}</p>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          const blob = await reportesService.descargar(r.id)
+                          const url = URL.createObjectURL(blob)
+                          const a = document.createElement('a')
+                          a.href = url
+                          a.download = `reporte_${r.id}.${r.formato.toLowerCase()}`
+                          a.click()
+                          URL.revokeObjectURL(url)
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50"
+                      >
+                        <Download className="w-3.5 h-3.5" /> Descargar
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab !== 'resumen' && activeTab !== 'historico' && (
             <div className="py-8 text-center text-slate-400 text-sm">
               Contenido de la pestaña {tabs.find(t => t.id === activeTab)?.label} disponible al generar un reporte.
             </div>
@@ -198,43 +286,51 @@ export function ReportesPage() {
         </div>
       </div>
 
-      {selectedReporte && (
-        <aside className="w-72 shrink-0">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4 sticky top-6">
-            <h3 className="text-sm font-semibold text-slate-700">Detalle del reporte</h3>
-            <div className="space-y-1.5 text-xs text-slate-600">
-              <p><strong>Tipo:</strong> {tipo}</p>
-              <p><strong>Período:</strong> {periodo}</p>
-              <p><strong>Formato:</strong> {formato}</p>
-              <p><strong>Contratos:</strong> 248</p>
-            </div>
-            <ScoreCircle score={61} size="md" />
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Conclusión</p>
-              <p className="text-xs text-slate-600 leading-relaxed">Se requiere atención inmediata en el sector de infraestructura. Se recomiendan auditorías cruzadas.</p>
-            </div>
-            <div className="space-y-2 pt-2 border-t border-slate-100">
-              <button onClick={handleDescargar} disabled={descargando} className="w-full flex items-center justify-center gap-2 py-2 bg-blue-600 text-white text-xs rounded-lg font-medium hover:bg-blue-700 disabled:opacity-60">
-                <Download className="w-3.5 h-3.5" /> {descargando ? 'Descargando...' : 'Descargar'}
-              </button>
-              <button className="w-full flex items-center justify-center gap-2 py-2 border border-slate-200 text-slate-600 text-xs rounded-lg font-medium hover:bg-slate-50">
-                <Share2 className="w-3.5 h-3.5" /> Compartir
-              </button>
-            </div>
+      <aside className="w-72 shrink-0">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4 sticky top-6">
+          <h3 className="text-sm font-semibold text-slate-700">Detalle del reporte</h3>
+          <div className="space-y-1.5 text-xs text-slate-600">
+            <p><strong>Tipo:</strong> {tipo}</p>
+            <p><strong>Período:</strong> {periodo}</p>
+            <p><strong>Formato:</strong> {formato}</p>
+            {departamento && <p><strong>Departamento:</strong> {departamento}</p>}
+          </div>
+          <ScoreCircle score={Math.round(stats?.riesgoPromedio ?? 61)} size="md" />
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Conclusión</p>
+            <p className="text-xs text-slate-600 leading-relaxed">Se requiere atención inmediata en el sector de infraestructura. Se recomiendan auditorías cruzadas.</p>
+          </div>
+          <div className="space-y-2 pt-2 border-t border-slate-100">
+            <button
+              onClick={handleDescargar}
+              disabled={descargando}
+              className="w-full flex items-center justify-center gap-2 py-2 bg-blue-600 text-white text-xs rounded-lg font-medium hover:bg-blue-700 disabled:opacity-60"
+            >
+              {descargando ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+              {descargando ? 'Descargando...' : 'Descargar Excel'}
+            </button>
+            <button
+              onClick={handleCompartir}
+              className={`w-full flex items-center justify-center gap-2 py-2 border text-xs rounded-lg font-medium transition-colors ${copiado ? 'border-green-300 bg-green-50 text-green-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+            >
+              <Share2 className="w-3.5 h-3.5" /> {copiado ? '¡URL copiada!' : 'Compartir'}
+            </button>
+          </div>
+          {reportesList.length > 0 && (
             <div>
               <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Historial de exportación</p>
               <div className="space-y-1.5">
-                {MOCK_REPORTE.historialExportacion.map((h, i) => (
-                  <div key={i} className="flex items-center justify-between text-xs text-slate-500">
-                    <span>{formatDate(h.fecha)} — {h.formato}</span>
-                    <span className="text-slate-400">{h.usuario.split(' ')[0]}</span>
+                {reportesList.slice(0, 3).map(r => (
+                  <div key={r.id} className="flex items-center justify-between text-xs text-slate-500">
+                    <span>{formatDate(r.fechaGeneracion)} — {r.formato}</span>
+                    <span className="text-slate-400">{r.usuarioNombre?.split(' ')[0] ?? '—'}</span>
                   </div>
                 ))}
               </div>
             </div>
-          </div>
-        </aside>
-      )}
+          )}
+        </div>
+      </aside>
     </div>
   )
 }

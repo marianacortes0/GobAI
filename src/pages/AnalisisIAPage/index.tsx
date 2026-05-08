@@ -238,9 +238,14 @@ export function AnalisisIAPage() {
               <p className="text-xs text-slate-600 leading-relaxed line-clamp-4">{analisis.resumenEjecutivo}</p>
             </div>
             <div className="space-y-2 pt-2 border-t border-slate-100">
-              <button className="w-full flex items-center justify-center gap-2 py-2 bg-blue-600 text-white text-xs rounded-lg font-medium hover:bg-blue-700">
+              <a
+                href="https://community.secop.gov.co/STS/Users/Login/Index?SkinName=CCE&currentLanguage=es-CO&Page=login&Country=CO"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center justify-center gap-2 py-2 bg-blue-600 text-white text-xs rounded-lg font-medium hover:bg-blue-700"
+              >
                 <ExternalLink className="w-3.5 h-3.5" /> Ver proceso en SECOP
-              </button>
+              </a>
               <button className="w-full flex items-center justify-center gap-2 py-2 border border-slate-200 text-slate-600 text-xs rounded-lg font-medium hover:bg-slate-50">
                 <Download className="w-3.5 h-3.5" /> Descargar informe
               </button>

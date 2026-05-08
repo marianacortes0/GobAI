@@ -26,8 +26,8 @@ export interface Alerta {
 }
 
 export interface AlertaStats {
-  activas: number
-  criticas: number
-  enSeguimiento: number
-  resueltas: number
+  total: number
+  revisadas: number
+  pendientes: number
+  riesgo_critico: number
 }

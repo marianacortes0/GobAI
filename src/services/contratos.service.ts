@@ -1,9 +1,10 @@
 import api from './api'
-import type { Contrato, ContratoDetalle } from '@/types/contrato.types'
+import type { Contrato, ContratoDetalle, ContractSummary } from '@/types/contrato.types'
 import type { Filters, PaginatedResponse } from '@/types/shared.types'
 
 type BackendContract = {
   id_contrato: string
+  id_del_proceso?: string | null
   nombre_proceso: string | null
   entidad_nombre: string | null
   modalidad: string | null
@@ -23,14 +24,20 @@ type BackendContractDetail = {
   precio_base: number
   fecha_publicacion: string | null
   entidad: { nit: string; nombre: string }
-  riesgo: { score_final: number; categoria_riesgo: string; evidencia: string } | null
+  riesgo: {
+    score_heuristico: number
+    score_llm: number
+    score_final: number
+    categoria_riesgo: string
+    evidencia: string
+  } | null
   flags: Array<{ tipo_flag: string; valor: boolean }>
 }
 
 function mapContract(c: BackendContract): Contrato {
   return {
     id: c.id_contrato,
-    idProceso: c.id_contrato,
+    idProceso: c.id_del_proceso ?? c.id_contrato,
     entidad: c.entidad_nombre ?? '',
     departamento: '',
     municipio: '',
@@ -40,7 +47,7 @@ function mapContract(c: BackendContract): Contrato {
     valorBase: c.precio_base ?? 0,
     estado: 'PUBLICADO',
     fechaPublicacion: c.fecha_publicacion ?? '',
-    riesgo: c.categoria_riesgo as Contrato['riesgo'],
+    riesgo: (c.categoria_riesgo === 'DESCONOCIDO' ? 'BAJO' : c.categoria_riesgo) as Contrato['riesgo'],
     scoreRiesgo: c.score_final ?? 0,
     senalesDetectadas: [],
     tieneAlertas: (c.score_final ?? 0) >= 50,
@@ -48,6 +55,21 @@ function mapContract(c: BackendContract): Contrato {
 }
 
 export const contratosService = {
+  async getSummary(): Promise<ContractSummary> {
+    const { data } = await api.get<ContractSummary>('/contracts/summary')
+    return data
+  },
+
+  async getDepartamentos(): Promise<string[]> {
+    const { data } = await api.get<string[]>('/contracts/departamentos')
+    return data
+  },
+
+  async getModalidades(): Promise<string[]> {
+    const { data } = await api.get<string[]>('/contracts/modalidades')
+    return data
+  },
+
   async getContratos(filters: Filters = {}): Promise<PaginatedResponse<Contrato>> {
     const params: Record<string, unknown> = {
       limit: filters.limit ?? 100,
@@ -57,6 +79,8 @@ export const contratosService = {
     if (filters.entidad) params.entidad = filters.entidad
     if (filters.riesgo) params.riesgo = filters.riesgo
     if (filters.modalidad) params.modalidad = filters.modalidad
+    if (filters.departamento) params.departamento = filters.departamento
+    if (filters.estado) params.estado = filters.estado
 
     const { data } = await api.get<BackendContract[]>('/contracts/', { params })
     return {
@@ -82,18 +106,24 @@ export const contratosService = {
       valorBase: data.precio_base ?? 0,
       estado: 'PUBLICADO',
       fechaPublicacion: data.fecha_publicacion ?? '',
-      riesgo: data.riesgo?.categoria_riesgo as ContratoDetalle['riesgo'],
+      riesgo: (data.riesgo?.categoria_riesgo === 'DESCONOCIDO'
+        ? 'BAJO'
+        : data.riesgo?.categoria_riesgo) as ContratoDetalle['riesgo'],
       scoreRiesgo: data.riesgo?.score_final ?? 0,
       senalesDetectadas: (data.flags ?? []).filter(f => f.valor).map(f => f.tipo_flag),
       tieneAlertas: (data.riesgo?.score_final ?? 0) >= 50,
       descripcionTecnica: data.descripcion ?? undefined,
-      evaluacion: data.riesgo ? {
-        score: data.riesgo.score_final,
-        riesgo: data.riesgo.categoria_riesgo as ContratoDetalle['riesgo'],
-        resumen: data.riesgo.evidencia,
-        hallazgos: [],
-        recomendaciones: [],
-      } : undefined,
+      evaluacion: data.riesgo
+        ? {
+            score: data.riesgo.score_final,
+            riesgo: (data.riesgo.categoria_riesgo === 'DESCONOCIDO'
+              ? 'BAJO'
+              : data.riesgo.categoria_riesgo) as ContratoDetalle['riesgo'],
+            resumen: data.riesgo.evidencia,
+            hallazgos: [],
+            recomendaciones: [],
+          }
+        : undefined,
     }
   },
 }

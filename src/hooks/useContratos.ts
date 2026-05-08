@@ -16,3 +16,26 @@ export function useContrato(id: string) {
     enabled: !!id,
   })
 }
+
+export function useContractSummary() {
+  return useQuery({
+    queryKey: ['contratos-summary'],
+    queryFn: () => contratosService.getSummary(),
+  })
+}
+
+export function useDepartamentos() {
+  return useQuery({
+    queryKey: ['departamentos'],
+    queryFn: () => contratosService.getDepartamentos(),
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+export function useModalidades() {
+  return useQuery({
+    queryKey: ['modalidades'],
+    queryFn: () => contratosService.getModalidades(),
+    staleTime: 5 * 60 * 1000,
+  })
+}

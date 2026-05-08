@@ -1,5 +1,20 @@
 import type { RiskLevel, ContractStatus } from './shared.types'
 
+export interface TopEntidad {
+  nombre: string
+  nit: string
+  valor_total: number
+  cantidad_contratos: number
+  score_promedio: number
+}
+
+export interface ContractSummary {
+  total: number
+  adjudicados: number
+  en_analisis: number
+  riesgo_alto: number
+}
+
 export interface Contrato {
   id: string
   idProceso: string
@@ -40,6 +55,7 @@ export interface ContratoDetalle extends Contrato {
 
 export interface DashboardStats {
   totalContratos: number
+  presupuestoTotal: number
   riesgoAlto: number
   riesgoMedio: number
   entidadesMonitoreadas: number
@@ -49,4 +65,7 @@ export interface DashboardStats {
     medio: number
     bajo: number
   }
+  topEntidadesRiesgo: TopEntidad[]
+  topEntidadesPresupuesto: TopEntidad[]
+  contratosPorMes: Record<string, number>
 }

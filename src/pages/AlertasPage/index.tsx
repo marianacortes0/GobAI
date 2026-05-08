@@ -7,9 +7,8 @@ import { StatusBadge } from '@/components/common/StatusBadge'
 import { ScoreCircle } from '@/components/common/ScoreCircle'
 import { DataTable, type Column } from '@/components/common/DataTable'
 import { DonutChart } from '@/components/charts/DonutChart'
-import { useAlertas } from '@/hooks/useAlertas'
+import { useAlertas, useAlertaStats, useMarcarRevisada } from '@/hooks/useAlertas'
 import { useDebounce } from '@/hooks/useDebounce'
-import { useFiltersStore } from '@/store/filters.store'
 import { RISK_COLORS } from '@/utils/constants'
 import { formatDate } from '@/utils/formatters'
 import type { Alerta } from '@/types/alerta.types'
@@ -41,9 +40,10 @@ export function AlertasPage() {
   const [filterSeveridad, setFilterSeveridad] = useState('')
   const [filterEstado, setFilterEstado] = useState('')
   const debouncedSearch = useDebounce(search)
-  const { setAlertasFilters } = useFiltersStore()
 
   const { data: alertas, isLoading } = useAlertas({ search: debouncedSearch })
+  const { data: stats } = useAlertaStats()
+  const { mutate: marcarRevisada, isPending: marcando } = useMarcarRevisada()
   const displayData = alertas?.data ?? MOCK_ALERTAS
 
   const tabs: { id: TabId; label: string }[] = [
@@ -65,12 +65,6 @@ export function AlertasPage() {
     return true
   })
 
-  function handleAplicar() {
-    setAlertasFilters({
-      ...(filterTipo ? { search: filterTipo } : {}),
-    })
-  }
-
   function handleLimpiar() {
     setFilterTipo('')
     setFilterSeveridad('')
@@ -87,11 +81,16 @@ export function AlertasPage() {
     { key: 'estado', header: 'Estado', accessor: (a) => a.estado, render: (v) => <StatusBadge status={v as Alerta['estado']} /> },
   ]
 
+  const criticas = filtered.filter(a => a.severidad === 'CRÍTICA').length
+  const enSeguimiento = filtered.filter(a => a.estado === 'EN_SEGUIMIENTO').length
+  const resueltas = stats?.revisadas ?? displayData.filter(a => a.estado === 'RESUELTA').length
+  const activas = stats?.pendientes ?? displayData.filter(a => a.estado !== 'RESUELTA').length
+
   const donutData = [
-    { name: 'Crítico', value: 12, color: RISK_COLORS['CRÍTICO'] },
-    { name: 'Alto', value: 8, color: RISK_COLORS['ALTO'] },
-    { name: 'Medio', value: 15, color: RISK_COLORS['MEDIO'] },
-    { name: 'Bajo', value: 9, color: RISK_COLORS['BAJO'] },
+    { name: 'Crítica', value: displayData.filter(a => a.severidad === 'CRÍTICA').length, color: RISK_COLORS['CRÍTICO'] },
+    { name: 'Alta',    value: displayData.filter(a => a.severidad === 'ALTA').length,    color: RISK_COLORS['ALTO'] },
+    { name: 'Media',   value: displayData.filter(a => a.severidad === 'MEDIA').length,   color: RISK_COLORS['MEDIO'] },
+    { name: 'Baja',    value: displayData.filter(a => a.severidad === 'BAJA').length,    color: RISK_COLORS['BAJO'] },
   ]
 
   return (
@@ -127,20 +126,17 @@ export function AlertasPage() {
                 {(['NUEVA', 'EN_REVISION', 'EN_SEGUIMIENTO', 'RESUELTA'] as const).map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
               </select>
             </div>
-            <button onClick={handleAplicar} className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors">
-              Aplicar filtros
-            </button>
             <button onClick={handleLimpiar} className="px-3 py-2 text-sm text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50 flex items-center gap-1.5">
-              <span>✕</span> Limpiar
+              <span>✕</span> Limpiar filtros
             </button>
           </div>
         </div>
 
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-          <KPICard title="Alertas activas" value={12} icon={Bell} iconBg="bg-blue-50" iconColor="text-blue-500" />
-          <KPICard title="Críticas" value={4} icon={AlertTriangle} iconBg="bg-red-50" iconColor="text-red-500" valueColor="text-red-600" />
-          <KPICard title="En seguimiento" value={5} icon={Clock} iconBg="bg-orange-50" iconColor="text-orange-500" />
-          <KPICard title="Resueltas" value={23} icon={CheckCircle} iconBg="bg-green-50" iconColor="text-green-500" />
+          <KPICard title="Alertas activas" value={activas} icon={Bell} iconBg="bg-blue-50" iconColor="text-blue-500" />
+          <KPICard title="Críticas" value={stats?.riesgo_critico ?? criticas} icon={AlertTriangle} iconBg="bg-red-50" iconColor="text-red-500" valueColor="text-red-600" />
+          <KPICard title="En seguimiento" value={enSeguimiento} icon={Clock} iconBg="bg-orange-50" iconColor="text-orange-500" />
+          <KPICard title="Resueltas" value={resueltas} icon={CheckCircle} iconBg="bg-green-50" iconColor="text-green-500" />
         </div>
 
         <div className="flex border-b border-slate-200">
@@ -149,7 +145,11 @@ export function AlertasPage() {
               className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeTab === tab.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
             >
               {tab.label}
-              {tab.id === 'criticas' && <span className="ml-1.5 px-1.5 py-0.5 bg-red-100 text-red-600 text-[10px] font-bold rounded-full">4</span>}
+              {tab.id === 'criticas' && (stats?.riesgo_critico ?? criticas) > 0 && (
+              <span className="ml-1.5 px-1.5 py-0.5 bg-red-100 text-red-600 text-[10px] font-bold rounded-full">
+                {stats?.riesgo_critico ?? criticas}
+              </span>
+            )}
             </button>
           ))}
         </div>
@@ -200,17 +200,27 @@ export function AlertasPage() {
               <button className="w-full flex items-center justify-center gap-2 py-2 bg-blue-600 text-white text-xs rounded-lg font-medium hover:bg-blue-700">
                 <Brain className="w-3.5 h-3.5" /> Analizar con IA
               </button>
-              <button className="w-full flex items-center justify-center gap-2 py-2 border border-slate-200 text-slate-600 text-xs rounded-lg font-medium hover:bg-slate-50">
+              <a
+                href="https://community.secop.gov.co/STS/Users/Login/Index?SkinName=CCE&currentLanguage=es-CO&Page=login&Country=CO"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center justify-center gap-2 py-2 border border-slate-200 text-slate-600 text-xs rounded-lg font-medium hover:bg-slate-50"
+              >
                 <ExternalLink className="w-3.5 h-3.5" /> Ver en SECOP
-              </button>
-              <button className="w-full flex items-center justify-center gap-2 py-2 border border-slate-200 text-slate-600 text-xs rounded-lg font-medium hover:bg-slate-50">
-                <CheckCircle className="w-3.5 h-3.5" /> Marcar revisada
+              </a>
+              <button
+                onClick={() => marcarRevisada(selected.id)}
+                disabled={marcando || selected.estado === 'RESUELTA'}
+                className="w-full flex items-center justify-center gap-2 py-2 border border-slate-200 text-slate-600 text-xs rounded-lg font-medium hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <CheckCircle className="w-3.5 h-3.5" />
+                {marcando ? 'Marcando...' : selected.estado === 'RESUELTA' ? 'Ya revisada' : 'Marcar revisada'}
               </button>
             </div>
 
             <div>
               <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Distribución de alertas</p>
-              <DonutChart data={donutData} total={44} centerLabel="alertas" />
+              <DonutChart data={donutData} total={displayData.length} centerLabel="alertas" />
             </div>
           </div>
         </aside>

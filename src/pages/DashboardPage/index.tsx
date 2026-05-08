@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FileText, AlertTriangle, Clock, Building2, Eye, ExternalLink, FlaskConical } from 'lucide-react'
+import { FileText, AlertTriangle, Clock, Building2, Eye, ExternalLink, FlaskConical, TrendingUp, ShieldAlert, CheckCircle2 } from 'lucide-react'
 import { KPICard } from '@/components/common/KPICard'
 import { RiskBadge } from '@/components/common/RiskBadge'
 import { ScoreCircle } from '@/components/common/ScoreCircle'
@@ -31,7 +31,15 @@ export function DashboardPage() {
 
   const isDemo = !statsLoading && !stats
   const displayStats = stats ?? MOCK_STATS
-  const displayContratos = contratos?.data ?? MOCK_CONTRATOS
+
+  const filteredMock = MOCK_CONTRATOS.filter(c => {
+    if (dashboardFilters.riesgo && c.riesgo !== dashboardFilters.riesgo) return false
+    if (dashboardFilters.entidad && c.entidad !== dashboardFilters.entidad) return false
+    if (dashboardFilters.modalidad && c.modalidad !== dashboardFilters.modalidad) return false
+    if (dashboardFilters.departamento && c.departamento !== dashboardFilters.departamento) return false
+    return true
+  })
+  const displayContratos = contratos?.data ?? filteredMock
 
   const donutData = [
     { name: 'Crítico', value: displayStats.distribucionRiesgo.critico, color: RISK_COLORS['CRÍTICO'] },
@@ -83,23 +91,26 @@ export function DashboardPage() {
 
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
           <div className="flex flex-wrap items-end gap-3">
-            <select onChange={(e) => setDashboardFilters({ departamento: e.target.value || undefined })} className="px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 bg-white outline-none focus:border-blue-400">
+            <select value={dashboardFilters.departamento ?? ''} onChange={(e) => setDashboardFilters({ departamento: e.target.value || undefined })} className="px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 bg-white outline-none focus:border-blue-400">
               <option value="">Departamento</option>
               {DEPARTAMENTOS.map(d => <option key={d} value={d}>{d}</option>)}
             </select>
-            <select onChange={(e) => setDashboardFilters({ entidad: e.target.value || undefined })} className="px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 bg-white outline-none focus:border-blue-400">
+            <select value={dashboardFilters.entidad ?? ''} onChange={(e) => setDashboardFilters({ entidad: e.target.value || undefined })} className="px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 bg-white outline-none focus:border-blue-400">
               <option value="">Entidad</option>
               {ENTIDADES.map(e => <option key={e} value={e}>{e}</option>)}
             </select>
-            <select onChange={(e) => setDashboardFilters({ modalidad: e.target.value || undefined })} className="px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 bg-white outline-none focus:border-blue-400">
+            <select value={dashboardFilters.modalidad ?? ''} onChange={(e) => setDashboardFilters({ modalidad: e.target.value || undefined })} className="px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 bg-white outline-none focus:border-blue-400">
               <option value="">Modalidad</option>
               {MODALIDADES.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
-            <select onChange={(e) => setDashboardFilters({ riesgo: (e.target.value as Contrato['riesgo']) || undefined })} className="px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 bg-white outline-none focus:border-blue-400">
+            <select value={dashboardFilters.riesgo ?? ''} onChange={(e) => setDashboardFilters({ riesgo: (e.target.value as Contrato['riesgo']) || undefined })} className="px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 bg-white outline-none focus:border-blue-400">
               <option value="">Riesgo</option>
               {(['CRÍTICO', 'ALTO', 'MEDIO', 'BAJO'] as const).map(r => <option key={r} value={r}>{r}</option>)}
             </select>
-            <button className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors">
+            <button
+              onClick={() => setDashboardFilters({ page: 1 })}
+              className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+            >
               Analizar
             </button>
           </div>
@@ -118,6 +129,121 @@ export function DashboardPage() {
           />
         </div>
       </div>
+
+      {/* Panel resumen permanente */}
+      <aside className="w-64 shrink-0">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-5 sticky top-6">
+          <div>
+            <p className="text-xs text-slate-400 uppercase font-semibold tracking-wide mb-0.5">Resumen general</p>
+            <h3 className="text-sm font-bold text-slate-800">Contratos analizados</h3>
+          </div>
+
+          {/* Total */}
+          <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-xl">
+            <div className="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center shrink-0">
+              <FileText className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <p className="text-xl font-bold text-blue-700">{displayStats.totalContratos.toLocaleString()}</p>
+              <p className="text-xs text-blue-500">total contratos</p>
+            </div>
+          </div>
+
+          {/* Distribución por riesgo */}
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Distribución de riesgo</p>
+            <div className="space-y-2">
+              {[
+                { label: 'Crítico', count: displayStats.distribucionRiesgo.critico, color: RISK_COLORS['CRÍTICO'], bg: 'bg-red-50', text: 'text-red-700' },
+                { label: 'Alto',    count: displayStats.distribucionRiesgo.alto,    color: RISK_COLORS['ALTO'],    bg: 'bg-orange-50', text: 'text-orange-700' },
+                { label: 'Medio',   count: displayStats.distribucionRiesgo.medio,   color: RISK_COLORS['MEDIO'],   bg: 'bg-yellow-50', text: 'text-yellow-700' },
+                { label: 'Bajo',    count: displayStats.distribucionRiesgo.bajo,    color: RISK_COLORS['BAJO'],    bg: 'bg-green-50',  text: 'text-green-700' },
+              ].map(({ label, count, color, bg, text }) => {
+                const pct = displayStats.totalContratos > 0 ? Math.round((count / displayStats.totalContratos) * 100) : 0
+                return (
+                  <div key={label}>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${bg} ${text}`}>{label}</span>
+                      <span className="text-xs text-slate-500">{count} <span className="text-slate-400">({pct}%)</span></span>
+                    </div>
+                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Stats rápidas */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between py-2 border-t border-slate-100">
+              <div className="flex items-center gap-2 text-xs text-slate-600">
+                <ShieldAlert className="w-3.5 h-3.5 text-red-500" />
+                Riesgo alto + crítico
+              </div>
+              <span className="text-xs font-bold text-red-600">
+                {displayStats.distribucionRiesgo.critico + displayStats.distribucionRiesgo.alto}
+              </span>
+            </div>
+            <div className="flex items-center justify-between py-2 border-t border-slate-100">
+              <div className="flex items-center gap-2 text-xs text-slate-600">
+                <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                Bajo riesgo
+              </div>
+              <span className="text-xs font-bold text-green-600">{displayStats.distribucionRiesgo.bajo}</span>
+            </div>
+            <div className="flex items-center justify-between py-2 border-t border-slate-100">
+              <div className="flex items-center gap-2 text-xs text-slate-600">
+                <Building2 className="w-3.5 h-3.5 text-blue-500" />
+                Entidades
+              </div>
+              <span className="text-xs font-bold text-slate-700">{displayStats.entidadesMonitoreadas}</span>
+            </div>
+          </div>
+
+          {/* Score promedio */}
+          <div className="p-3 bg-slate-50 rounded-xl">
+            <div className="flex items-center gap-2 mb-1">
+              <TrendingUp className="w-3.5 h-3.5 text-slate-500" />
+              <p className="text-xs font-semibold text-slate-500">Score promedio del período</p>
+            </div>
+            {(() => {
+              const total = displayStats.distribucionRiesgo.critico + displayStats.distribucionRiesgo.alto + displayStats.distribucionRiesgo.medio + displayStats.distribucionRiesgo.bajo
+              const avgScore = total > 0
+                ? Math.round((displayStats.distribucionRiesgo.critico * 90 + displayStats.distribucionRiesgo.alto * 75 + displayStats.distribucionRiesgo.medio * 50 + displayStats.distribucionRiesgo.bajo * 20) / total)
+                : 0
+              const scoreColor = avgScore >= 70 ? '#DC2626' : avgScore >= 50 ? '#F59E0B' : '#10B981'
+              return (
+                <div className="flex items-end gap-2">
+                  <span className="text-2xl font-bold" style={{ color: scoreColor }}>{avgScore}</span>
+                  <span className="text-xs text-slate-400 mb-1">/100</span>
+                </div>
+              )
+            })()}
+          </div>
+
+          {/* Top contratos visibles */}
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Mayor riesgo (vista actual)</p>
+            <div className="space-y-2">
+              {displayContratos.slice(0, 3).map(c => (
+                <button
+                  key={c.id}
+                  onClick={() => setSelectedContrato(c)}
+                  className="w-full text-left p-2 rounded-lg hover:bg-slate-50 border border-slate-100 transition-colors"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-medium text-slate-700 truncate">{c.entidad}</p>
+                    <span className="text-xs font-bold shrink-0" style={{ color: RISK_COLORS[c.riesgo] }}>{c.scoreRiesgo}</span>
+                  </div>
+                  <p className="text-xs text-slate-400 truncate mt-0.5">{c.idProceso}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </aside>
 
       {selectedContrato && (
         <aside className="w-72 shrink-0">
@@ -155,9 +281,14 @@ export function DashboardPage() {
               <DonutChart data={donutData} total={displayStats.totalContratos} centerLabel="total" />
             </div>
             <div className="pt-2 border-t border-slate-100">
-              <button className="w-full flex items-center justify-center gap-2 py-2 border border-slate-200 text-slate-600 text-xs rounded-lg font-medium hover:bg-slate-50">
+              <a
+                href="https://community.secop.gov.co/STS/Users/Login/Index?SkinName=CCE&currentLanguage=es-CO&Page=login&Country=CO"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center justify-center gap-2 py-2 border border-slate-200 text-slate-600 text-xs rounded-lg font-medium hover:bg-slate-50"
+              >
                 <ExternalLink className="w-3.5 h-3.5" /> Ver en SECOP
-              </button>
+              </a>
             </div>
           </div>
         </aside>

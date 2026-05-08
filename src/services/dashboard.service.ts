@@ -1,16 +1,31 @@
 import api from './api'
-import type { DashboardStats, Contrato } from '@/types/contrato.types'
+import type { DashboardStats, Contrato, TopEntidad } from '@/types/contrato.types'
 import type { Filters, PaginatedResponse } from '@/types/shared.types'
 
 type BackendStats = {
   total_contratos: number
   presupuesto_total: number
   distribucion_riesgo: Array<{ category: string; count: number; percentage: number }>
-  top_entidades_riesgo: Array<{ nombre: string; nit: string; valor_total: number; cantidad_contratos: number; score_promedio: number }>
+  top_entidades_riesgo: Array<{
+    nombre: string
+    nit: string
+    valor_total: number
+    cantidad_contratos: number
+    score_promedio: number
+  }>
+  top_entidades_presupuesto: Array<{
+    nombre: string
+    nit: string
+    valor_total: number
+    cantidad_contratos: number
+    score_promedio: number
+  }>
+  contratos_por_mes: Record<string, number>
 }
 
 type BackendContract = {
   id_contrato: string
+  id_del_proceso?: string | null
   nombre_proceso: string | null
   entidad_nombre: string | null
   modalidad: string | null
@@ -23,7 +38,7 @@ type BackendContract = {
 function mapContract(c: BackendContract): Contrato {
   return {
     id: c.id_contrato,
-    idProceso: c.id_contrato,
+    idProceso: c.id_del_proceso ?? c.id_contrato,
     entidad: c.entidad_nombre ?? '',
     departamento: '',
     municipio: '',
@@ -33,10 +48,20 @@ function mapContract(c: BackendContract): Contrato {
     valorBase: c.precio_base ?? 0,
     estado: 'PUBLICADO',
     fechaPublicacion: c.fecha_publicacion ?? '',
-    riesgo: c.categoria_riesgo as Contrato['riesgo'],
+    riesgo: (c.categoria_riesgo === 'DESCONOCIDO' ? 'BAJO' : c.categoria_riesgo) as Contrato['riesgo'],
     scoreRiesgo: c.score_final ?? 0,
     senalesDetectadas: [],
     tieneAlertas: (c.score_final ?? 0) >= 50,
+  }
+}
+
+function mapTopEntidad(e: BackendStats['top_entidades_riesgo'][0]): TopEntidad {
+  return {
+    nombre: e.nombre,
+    nit: e.nit,
+    valor_total: e.valor_total,
+    cantidad_contratos: e.cantidad_contratos,
+    score_promedio: e.score_promedio,
   }
 }
 
@@ -47,15 +72,19 @@ export const dashboardService = {
     const getCount = (cat: string) => dist.find(d => d.category === cat)?.count ?? 0
     return {
       totalContratos: data.total_contratos,
+      presupuestoTotal: data.presupuesto_total ?? 0,
       riesgoAlto: getCount('ALTO'),
       riesgoMedio: getCount('MEDIO'),
       entidadesMonitoreadas: data.top_entidades_riesgo?.length ?? 0,
       distribucionRiesgo: {
-        critico: getCount('CRÍTICO'),
+        critico: getCount('CRITICO'),
         alto: getCount('ALTO'),
         medio: getCount('MEDIO'),
         bajo: getCount('BAJO'),
       },
+      topEntidadesRiesgo: (data.top_entidades_riesgo ?? []).map(mapTopEntidad),
+      topEntidadesPresupuesto: (data.top_entidades_presupuesto ?? []).map(mapTopEntidad),
+      contratosPorMes: data.contratos_por_mes ?? {},
     }
   },
 
@@ -66,6 +95,10 @@ export const dashboardService = {
     }
     if (filters.search) params.search = filters.search
     if (filters.entidad) params.entidad = filters.entidad
+    if (filters.departamento) params.departamento = filters.departamento
+    if (filters.modalidad) params.modalidad = filters.modalidad
+    if (filters.riesgo) params.riesgo = filters.riesgo
+
     const { data } = await api.get<BackendContract[]>('/contracts/', { params })
     return {
       data: data.map(mapContract),

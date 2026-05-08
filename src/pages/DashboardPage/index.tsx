@@ -29,6 +29,7 @@ export function DashboardPage() {
   const { data: contratos, isLoading: contratosLoading } = useContratosPriorizados(dashboardFilters)
   const { data: entidadesData } = useEntidades()
   const entidades = entidadesData?.data ?? []
+  const totalEntidades = entidadesData?.total ?? displayStats.entidadesMonitoreadas
   const [selectedContrato, setSelectedContrato] = useState<Contrato | null>(null)
 
   const isDemo = !statsLoading && !stats
@@ -87,7 +88,7 @@ export function DashboardPage() {
             <KPICard title="Contratos analizados" value={displayStats.totalContratos} trend={3.2} trendLabel="vs mes ant." icon={FileText} iconBg="bg-blue-50" iconColor="text-blue-500" />
             <KPICard title="Riesgo alto" value={displayStats.riesgoAlto} trend={-1.8} icon={AlertTriangle} iconBg="bg-red-50" iconColor="text-red-500" valueColor="text-red-600" />
             <KPICard title="Riesgo medio" value={displayStats.riesgoMedio} trend={2.1} icon={Clock} iconBg="bg-orange-50" iconColor="text-orange-500" valueColor="text-orange-600" />
-            <KPICard title="Entidades monitoreadas" value={displayStats.entidadesMonitoreadas} icon={Building2} iconBg="bg-green-50" iconColor="text-green-500" />
+            <KPICard title="Entidades monitoreadas" value={totalEntidades} icon={Building2} iconBg="bg-green-50" iconColor="text-green-500" />
           </div>
         )}
 
@@ -200,7 +201,7 @@ export function DashboardPage() {
                 <Building2 className="w-3.5 h-3.5 text-blue-500" />
                 Entidades
               </div>
-              <span className="text-xs font-bold text-slate-700">{displayStats.entidadesMonitoreadas}</span>
+              <span className="text-xs font-bold text-slate-700">{totalEntidades}</span>
             </div>
           </div>
 

@@ -17,24 +17,39 @@ type BackendEntity = {
   contratos_count: number
 }
 
+const PAGE_SIZE = 100
+
+function mapEntity(e: BackendEntity): Entidad {
+  return {
+    nit: e.nit,
+    nombre: e.nombre,
+    departamento: e.departamento && e.departamento !== 'None' ? e.departamento : undefined,
+    ciudad: e.ciudad && e.ciudad !== 'None' ? e.ciudad : undefined,
+    contratos_count: e.contratos_count,
+  }
+}
+
 export const entidadesService = {
   async getEntidades(params: {
-    skip?: number
-    limit?: number
     search?: string
   } = {}): Promise<PaginatedResponse<Entidad>> {
-    const { data } = await api.get<BackendEntity[]>('/entities/', { params })
+    const all: Entidad[] = []
+    let skip = 0
+
+    while (true) {
+      const { data } = await api.get<BackendEntity[]>('/entities/', {
+        params: { skip, limit: PAGE_SIZE, ...(params.search ? { search: params.search } : {}) },
+      })
+      all.push(...data.map(mapEntity))
+      if (data.length < PAGE_SIZE) break
+      skip += PAGE_SIZE
+    }
+
     return {
-      data: data.map(e => ({
-        nit: e.nit,
-        nombre: e.nombre,
-        departamento: e.departamento ?? undefined,
-        ciudad: e.ciudad ?? undefined,
-        contratos_count: e.contratos_count,
-      })),
-      total: data.length,
+      data: all,
+      total: all.length,
       page: 1,
-      limit: params.limit ?? 100,
+      limit: all.length,
       totalPages: 1,
     }
   },

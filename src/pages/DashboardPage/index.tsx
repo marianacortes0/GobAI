@@ -28,12 +28,12 @@ export function DashboardPage() {
   const { data: stats, isLoading: statsLoading } = useDashboardStats()
   const { data: contratos, isLoading: contratosLoading } = useContratosPriorizados(dashboardFilters)
   const { data: entidadesData } = useEntidades()
-  const entidades = entidadesData?.data ?? []
-  const totalEntidades = entidadesData?.total ?? displayStats.entidadesMonitoreadas
   const [selectedContrato, setSelectedContrato] = useState<Contrato | null>(null)
 
   const isDemo = !statsLoading && !stats
   const displayStats = stats ?? MOCK_STATS
+  const entidades = entidadesData?.data ?? []
+  const totalEntidades = entidadesData?.total ?? displayStats.entidadesMonitoreadas
 
   const filteredMock = MOCK_CONTRATOS.filter(c => {
     if (dashboardFilters.riesgo && c.riesgo !== dashboardFilters.riesgo) return false

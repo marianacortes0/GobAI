@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import {
-  LayoutDashboard, FileText, Bot, Bell, BarChart3, Settings, Shield
+  LayoutDashboard, FileText, Bot, Bell, BarChart3, Settings, Shield, Network
 } from 'lucide-react'
 import { cn } from '@/utils/helpers'
 
@@ -9,6 +9,7 @@ const navItems = [
   { to: '/contratos', icon: FileText, label: 'Contratos', badge: 0 },
   { to: '/analisis/nuevo', icon: Bot, label: 'Análisis IA', badge: 0 },
   { to: '/alertas', icon: Bell, label: 'Alertas', badge: 4 },
+  { to: '/mapa-relaciones', icon: Network, label: 'Mapa de relaciones', badge: 0 },
   { to: '/reportes', icon: BarChart3, label: 'Reportes', badge: 0 },
   { to: '/configuracion', icon: Settings, label: 'Configuración', badge: 0 },
 ]

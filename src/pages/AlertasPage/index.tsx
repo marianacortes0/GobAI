@@ -14,15 +14,6 @@ import { formatDate } from '@/utils/formatters'
 import type { Alerta } from '@/types/alerta.types'
 import type { Severity } from '@/types/shared.types'
 
-const TIPOS_ALERTA = ['Concentración de proveedor', 'Urgencia injustificada', 'Fraccionamiento', 'Precio inusual', 'Proponente único', 'Justificación débil']
-
-const MOCK_ALERTAS: Alerta[] = [
-  { id: '1', tipo: 'Concentración de proveedor', severidad: 'CRÍTICA', estado: 'NUEVA', entidad: 'Gobernación Antioquia', idProceso: 'SN-2024-002891', senalDetectada: 'Proponente único repetido', descripcion: 'El mismo proveedor ha ganado 8 contratos consecutivos sin competencia real.', fechaDeteccion: '2024-02-15', departamento: 'Antioquia', municipio: 'Medellín', scoreRiesgo: 89, riesgo: 'CRÍTICO', accionesSugeridas: ['Solicitar explicación técnica', 'Verificar inhabilidades', 'Escalar a Procuraduría'] },
-  { id: '2', tipo: 'Urgencia injustificada', severidad: 'ALTA', estado: 'EN_REVISION', entidad: 'Alcaldía de Bogotá', idProceso: 'SN-2024-001234', senalDetectada: 'Urgencia declarada sin soporte', descripcion: 'Se declaró urgencia manifiesta sin evidencia documental.', fechaDeteccion: '2024-02-12', departamento: 'Cundinamarca', municipio: 'Bogotá', scoreRiesgo: 74, riesgo: 'ALTO', accionesSugeridas: ['Revisar acto administrativo', 'Verificar soporte de urgencia'] },
-  { id: '3', tipo: 'Fraccionamiento', severidad: 'ALTA', estado: 'EN_SEGUIMIENTO', entidad: 'IDU Bogotá', idProceso: 'SN-2024-005678', senalDetectada: 'División artificial del contrato', descripcion: 'Contrato dividido en 4 partes para evadir licitación.', fechaDeteccion: '2024-02-10', departamento: 'Cundinamarca', municipio: 'Bogotá', scoreRiesgo: 78, riesgo: 'ALTO', accionesSugeridas: ['Consolidar contratos relacionados', 'Auditar proceso'] },
-  { id: '4', tipo: 'Precio inusual', severidad: 'MEDIA', estado: 'RESUELTA', entidad: 'SENA', idProceso: 'SN-2024-003456', senalDetectada: 'Precio 35% por encima del mercado', descripcion: 'Precios superiores al promedio de mercado detectados.', fechaDeteccion: '2024-01-30', departamento: 'Valle del Cauca', municipio: 'Cali', scoreRiesgo: 52, riesgo: 'MEDIO', accionesSugeridas: ['Análisis de precios', 'Comparar estudios de mercado'] },
-]
-
 const PRIORIDAD_COLOR: Record<string, string> = {
   'CRÍTICO': 'bg-red-100 text-red-700 border-red-200',
   'ALTO': 'bg-orange-100 text-orange-700 border-orange-200',
@@ -44,7 +35,8 @@ export function AlertasPage() {
   const { data: alertas, isLoading } = useAlertas({ search: debouncedSearch })
   const { data: stats } = useAlertaStats()
   const { mutate: marcarRevisada, isPending: marcando } = useMarcarRevisada()
-  const displayData = alertas?.data ?? MOCK_ALERTAS
+  const displayData = alertas?.data ?? []
+  const tiposDisponibles = Array.from(new Set(displayData.map(a => a.tipo).filter(Boolean))).sort()
 
   const tabs: { id: TabId; label: string }[] = [
     { id: 'todas', label: 'Todas' },
@@ -81,10 +73,10 @@ export function AlertasPage() {
     { key: 'estado', header: 'Estado', accessor: (a) => a.estado, render: (v) => <StatusBadge status={v as Alerta['estado']} /> },
   ]
 
-  const criticas = filtered.filter(a => a.severidad === 'CRÍTICA').length
-  const enSeguimiento = filtered.filter(a => a.estado === 'EN_SEGUIMIENTO').length
-  const resueltas = stats?.revisadas ?? displayData.filter(a => a.estado === 'RESUELTA').length
-  const activas = stats?.pendientes ?? displayData.filter(a => a.estado !== 'RESUELTA').length
+  const criticas = stats?.riesgo_critico ?? displayData.filter(a => a.severidad === 'CRÍTICA').length
+  const enSeguimiento = displayData.filter(a => a.estado === 'EN_SEGUIMIENTO').length
+  const resueltas = stats?.revisadas ?? 0
+  const activas = stats?.pendientes ?? displayData.length
 
   const donutData = [
     { name: 'Crítica', value: displayData.filter(a => a.severidad === 'CRÍTICA').length, color: RISK_COLORS['CRÍTICO'] },
@@ -109,7 +101,7 @@ export function AlertasPage() {
               <label className="block text-xs font-medium text-slate-500 mb-1">Tipo de alerta</label>
               <select value={filterTipo} onChange={(e) => setFilterTipo(e.target.value)} className="px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 bg-white outline-none focus:border-blue-400">
                 <option value="">Todos</option>
-                {TIPOS_ALERTA.map(t => <option key={t} value={t}>{t}</option>)}
+                {tiposDisponibles.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
             <div>

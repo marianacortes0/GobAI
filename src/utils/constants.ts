@@ -50,7 +50,18 @@ export const ROUTES = {
   ANALISIS: '/analisis/:id',
   ALERTAS: '/alertas',
   ALERTA_DETALLE: '/alertas/:id',
+  MAPA_RELACIONES: '/mapa-relaciones',
   REPORTES: '/reportes',
   REPORTE_DETALLE: '/reportes/:id',
   CONFIGURACION: '/configuracion',
 }
+
+export const NODO_COLORS = {
+  entidad: '#60A5FA',
+  proveedor: '#22D3EE',
+  contrato: '#C084FC',
+  persona: '#F0ABFC',
+  consorcio: '#4ADE80',
+  sancion: '#FB7185',
+  pep: '#FCD34D',
+} as const

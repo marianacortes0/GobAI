@@ -1,9 +1,10 @@
 import api from './api'
 import type { Alerta, AlertaStats } from '@/types/alerta.types'
-import type { Filters, PaginatedResponse } from '@/types/shared.types'
+import type { Filters, PaginatedResponse, Severity, RiskLevel } from '@/types/shared.types'
 
 type BackendContract = {
   id_contrato: string
+  id_del_proceso?: string | null
   nombre_proceso: string | null
   entidad_nombre: string | null
   modalidad: string | null
@@ -13,27 +14,37 @@ type BackendContract = {
   fecha_publicacion: string | null
 }
 
+function severidadFromScore(score: number): Severity {
+  if (score >= 90) return 'CRÍTICA'
+  if (score >= 70) return 'ALTA'
+  if (score >= 50) return 'MEDIA'
+  return 'BAJA'
+}
+
+function riesgoFromScore(score: number, categoria: string): RiskLevel {
+  if (score >= 90) return 'CRÍTICO'
+  const c = (categoria ?? '').toUpperCase()
+  if (c === 'ALTO') return 'ALTO'
+  if (c === 'MEDIO') return 'MEDIO'
+  if (c === 'BAJO' || c === 'DESCONOCIDO') return 'BAJO'
+  return 'MEDIO'
+}
+
 function mapAlerta(c: BackendContract): Alerta {
-  const riesgo = (c.categoria_riesgo === 'DESCONOCIDO' ? 'BAJO' : c.categoria_riesgo) as Alerta['riesgo']
-  const severidadMap: Record<string, Alerta['severidad']> = {
-    CRITICO: 'CRÍTICA',
-    ALTO: 'ALTA',
-    MEDIO: 'MEDIA',
-    BAJO: 'BAJA',
-  }
+  const score = c.score_final ?? 0
   return {
     id: c.id_contrato,
-    tipo: c.modalidad ?? 'CONTRATACIÓN',
-    severidad: severidadMap[c.categoria_riesgo] ?? 'MEDIA',
+    tipo: c.modalidad ?? 'Sin modalidad',
+    severidad: severidadFromScore(score),
     estado: 'NUEVA',
     entidad: c.entidad_nombre ?? '',
-    idProceso: c.id_contrato,
-    senalDetectada: '',
-    descripcion: c.nombre_proceso ?? '',
+    idProceso: c.id_del_proceso ?? c.id_contrato,
+    senalDetectada: `Score de riesgo ${Math.round(score)}/100 · ${(c.categoria_riesgo ?? '').toUpperCase() || 'SIN CATEGORÍA'}`,
+    descripcion: c.nombre_proceso ?? 'Sin descripción del proceso.',
     fechaDeteccion: c.fecha_publicacion ?? '',
     departamento: '',
-    scoreRiesgo: c.score_final ?? 0,
-    riesgo,
+    scoreRiesgo: Math.round(score),
+    riesgo: riesgoFromScore(score, c.categoria_riesgo),
     accionesSugeridas: [],
   }
 }
@@ -62,8 +73,14 @@ export const alertasService = {
   },
 
   async getStats(): Promise<AlertaStats> {
-    const { data } = await api.get<AlertaStats>('/alertas/stats')
-    return data
+    const { data } = await api.get<{ data: AlertaStats } | AlertaStats>('/alertas/stats')
+    const inner = (data as { data?: AlertaStats }).data ?? (data as AlertaStats)
+    return {
+      total: inner.total ?? 0,
+      revisadas: inner.revisadas ?? 0,
+      pendientes: inner.pendientes ?? 0,
+      riesgo_critico: inner.riesgo_critico ?? 0,
+    }
   },
 
   async marcarRevisada(id: string): Promise<void> {

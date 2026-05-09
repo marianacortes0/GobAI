@@ -1,94 +1,143 @@
-import { useState, useEffect } from 'react'
-import { Download, ExternalLink, Brain, AlertTriangle, Search, TrendingUp, Info, Eye, FileText, CheckCircle2 } from 'lucide-react'
+import { useState } from 'react'
+import { Play, Download, ExternalLink, Loader2, AlertTriangle, Search, TrendingUp } from 'lucide-react'
 import { KPICard } from '@/components/common/KPICard'
 import { ScoreCircle } from '@/components/common/ScoreCircle'
 import { LoadingSpinner } from '@/components/common/LoadingSpinner'
 import { EmptyState } from '@/components/common/EmptyState'
-import { useContrato } from '@/hooks/useContratos'
+import { HorizontalBarChart } from '@/components/charts/HorizontalBarChart'
+import { useEjecutarAnalisis } from '@/hooks/useAnalisis'
 import { useToast } from '@/hooks/useToast'
-import { formatCurrency } from '@/utils/formatters'
+import { analisisService } from '@/services/analisis.service'
+import type { Analisis } from '@/types/analisis.types'
 
-type TabId = 'resumen' | 'hallazgos' | 'detalles'
+type TabId = 'resumen' | 'hallazgos' | 'evidencia' | 'recomendaciones'
 
 export function AnalisisIAPage() {
   const [contratoId, setContratoId] = useState('')
-  const [searchId, setSearchId] = useState('')
-  const { data: contrato, isLoading, isError } = useContrato(searchId)
+  const [modelo, setModelo] = useState('claude-sonnet-4-6')
+  const [modo, setModo] = useState('Completo')
+  const [analisis, setAnalisis] = useState<Analisis | null>(null)
   const [activeTab, setActiveTab] = useState<TabId>('resumen')
+  const { mutate: ejecutar, isPending } = useEjecutarAnalisis()
   const toast = useToast()
 
-  useEffect(() => {
-    if (isError && searchId) {
-      toast.error('Contrato no encontrado o error en el servidor')
-    }
-  }, [isError, searchId, toast])
+  function handleEjecutar() {
+    ejecutar(
+      { contratoId: contratoId.trim(), modelo, modo },
+      {
+        onSuccess: (data) => {
+          setAnalisis(data)
+          toast.success('Análisis ejecutado correctamente')
+        },
+        onError: (err: unknown) => {
+          setAnalisis(null)
+          const detail =
+            (err as { response?: { data?: { detail?: string } }; message?: string })?.response?.data?.detail ??
+            (err as { message?: string })?.message ??
+            'No se pudo ejecutar el análisis. Verifica el ID del contrato.'
+          toast.error(detail)
+        },
+      },
+    )
+  }
 
-  function handleAnalizar() {
-    if (contratoId.trim()) {
-      setSearchId(contratoId.trim())
+  async function handleDescargar() {
+    if (!analisis) return
+    try {
+      const blob = await analisisService.descargarInforme(analisis.id)
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `informe-${analisis.id}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch {
+      toast.error('No se pudo descargar el informe')
     }
   }
 
   const tabs: { id: TabId; label: string }[] = [
-    { id: 'resumen', label: 'Resumen de Riesgo' },
-    { id: 'hallazgos', label: 'Señales Detectadas' },
-    { id: 'detalles', label: 'Información del Proceso' },
+    { id: 'resumen', label: 'Resumen' },
+    { id: 'hallazgos', label: 'Hallazgos' },
+    { id: 'evidencia', label: 'Evidencia textual' },
+    { id: 'recomendaciones', label: 'Recomendaciones' },
   ]
+
+  const severityColor: Record<string, string> = { ALTA: 'border-l-red-500', MEDIA: 'border-l-orange-400', BAJA: 'border-l-yellow-400' }
 
   return (
     <div className="flex gap-6">
-      <div className="flex-1 min-w-0 space-y-6">
+      <div className="flex-1 min-w-0 space-y-5">
         <div>
-          <h1 className="text-xl font-bold text-slate-800">Análisis Técnico de Riesgo</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Reporte detallado de auditoría generado por el motor de riesgo del Dashboard</p>
+          <h1 className="text-xl font-bold text-slate-800">Análisis IA</h1>
+          <p className="text-sm text-slate-500 mt-0.5">Examina hallazgos, evidencia textual y explicabilidad generada por IA sobre procesos contractuales</p>
         </div>
 
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-          <div className="flex items-end gap-3">
-            <div className="flex-1">
-              <label className="block text-xs font-medium text-slate-500 mb-1">ID del Contrato / Proceso</label>
-              <div className="relative">
-                <input
-                  value={contratoId}
-                  onChange={(e) => setContratoId(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleAnalizar()}
-                  className="w-full pl-3 pr-10 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:border-blue-400"
-                  placeholder="Ej: CO1.REQ.10194417_10476"
-                />
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
-                  <Search className="w-4 h-4" />
-                </div>
-              </div>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex-1 min-w-48">
+              <label className="block text-xs font-medium text-slate-500 mb-1">Contrato / ID Proceso</label>
+              <input
+                value={contratoId}
+                onChange={(e) => setContratoId(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:border-blue-400"
+                placeholder="CO1.REQ.10194417_10476"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Modelo IA</label>
+              <select value={modelo} onChange={(e) => setModelo(e.target.value)} className="px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-blue-400">
+                <option value="claude-3-5-sonnet-latest">Claude Sonnet 3.5</option>
+                <option value="claude-3-opus-latest">Claude Opus 3</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Modo análisis</label>
+              <select value={modo} onChange={(e) => setModo(e.target.value)} className="px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-blue-400">
+                <option>Completo</option>
+                <option>Rápido</option>
+                <option>Focalizado</option>
+              </select>
             </div>
             <button
-              onClick={handleAnalizar}
-              disabled={isLoading || !contratoId.trim()}
-              className="flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-semibold rounded-lg transition-colors h-[38px]"
+              onClick={handleEjecutar}
+              disabled={isPending || !contratoId.trim()}
+              className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-semibold rounded-lg transition-colors"
             >
-              {isLoading ? <LoadingSpinner size="sm" color="white" /> : <Eye className="w-4 h-4" />}
-              {isLoading ? 'Consultando...' : 'Analizar'}
+              {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+              {isPending ? 'Analizando...' : 'Ejecutar análisis'}
             </button>
           </div>
+          {analisis && analisis.entradasAnalizadas.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <p className="text-xs text-slate-500 font-medium mr-1">Entradas analizadas:</p>
+              {analisis.entradasAnalizadas.map((e, i) => (
+                <span key={i} className="px-2.5 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-full border border-blue-100">{e}</span>
+              ))}
+            </div>
+          )}
         </div>
 
-        {isLoading && <LoadingSpinner />}
+        {isPending && <LoadingSpinner className="!py-0" />}
 
-        {!contrato && !isLoading && (
+        {!analisis && !isPending && (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
             <EmptyState
-              title="Consulta un proceso contractual"
-              description="Ingresa el ID (formato SECOP II) para extraer el perfil de riesgo, banderas críticas y evaluación técnica."
+              title="Aún no has ejecutado un análisis"
+              description="Ingresa un ID de contrato o proceso (formato CO1.REQ.XXXXXXXX_XXXXX) y pulsa 'Ejecutar análisis'."
             />
           </div>
         )}
 
-        {contrato && !isLoading && (
+        {analisis && !isPending && (
           <>
             <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-              <KPICard title="Score de Riesgo" value={contrato.scoreRiesgo} icon={TrendingUp} iconBg="bg-red-50" iconColor="text-red-500" valueColor="text-red-600" />
-              <KPICard title="Señales Detectadas" value={contrato.senalesDetectadas.length} icon={AlertTriangle} iconBg="bg-orange-50" iconColor="text-orange-500" />
-              <KPICard title="Estado Proceso" value={contrato.estado} icon={CheckCircle2} iconBg="bg-green-50" iconColor="text-green-500" />
-              <KPICard title="Valor Base" value={formatCurrency(contrato.valorBase)} icon={FileText} iconBg="bg-blue-50" iconColor="text-blue-500" />
+              <KPICard title="Score total" value={analisis.scoreTotal} icon={TrendingUp} iconBg="bg-red-50" iconColor="text-red-500" valueColor="text-red-600" />
+              <KPICard title="Señales críticas" value={analisis.senalesCriticas} icon={AlertTriangle} iconBg="bg-orange-50" iconColor="text-orange-500" />
+              <KPICard title="Hallazgos IA" value={analisis.hallazgosIA} icon={Search} iconBg="bg-blue-50" iconColor="text-blue-500" />
+              <KPICard title="Confianza" value={`${analisis.confianza}%`} icon={TrendingUp} iconBg="bg-green-50" iconColor="text-green-500" />
             </div>
 
             <div className="flex border-b border-slate-200">
@@ -101,109 +150,140 @@ export function AnalisisIAPage() {
               ))}
             </div>
 
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 min-h-[300px]">
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
               {activeTab === 'resumen' && (
                 <div className="space-y-6">
                   <div>
-                    <h3 className="text-sm font-semibold text-slate-700 mb-2">Evaluación del Motor de Riesgo</h3>
-                    <p className="text-sm text-slate-600 leading-relaxed">
-                      {contrato.evaluacion?.resumen || contrato.descripcionTecnica || 'No hay un resumen narrativo disponible para este contrato en este momento.'}
-                    </p>
+                    <h3 className="text-sm font-semibold text-slate-700 mb-2">Resumen ejecutivo</h3>
+                    <p className="text-sm text-slate-600 leading-relaxed">{analisis.resumenEjecutivo}</p>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                      <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Entidad Contratante</p>
-                      <p className="text-sm font-bold text-slate-800">{contrato.entidad}</p>
-                      <p className="text-xs text-slate-500">NIT: {contrato.nit || 'No disponible'}</p>
-                    </div>
-                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                      <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Modalidad</p>
-                      <p className="text-sm font-bold text-slate-800">{contrato.modalidad}</p>
-                      <p className="text-xs text-slate-500">Fecha: {contrato.fechaPublicacion}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'hallazgos' && (
-                <div className="space-y-4">
-                  <h3 className="text-sm font-semibold text-slate-700 mb-3">Banderas Rojas y Señales Críticas</h3>
-                  {contrato.senalesDetectadas.length > 0 ? (
-                    <div className="grid gap-3">
-                      {contrato.senalesDetectadas.map((s, i) => (
-                        <div key={i} className="flex items-start gap-3 p-3 bg-red-50 border border-red-100 rounded-lg">
-                          <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-sm font-bold text-red-800">{s}</p>
-                            <p className="text-xs text-red-600">Esta señal indica una posible desviación en el proceso competitivo o financiero.</p>
-                          </div>
-                        </div>
-                      ))}
+                  {analisis.factoresPonderados.length > 0 ? (
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-700 mb-3">Factores ponderados</h3>
+                      <HorizontalBarChart
+                        data={analisis.factoresPonderados.map(f => ({ label: `${f.nombre} (${f.peso}%)`, value: f.valor, max: 100, color: f.color }))}
+                        showPercent
+                      />
                     </div>
                   ) : (
-                    <EmptyState title="Sin señales críticas" description="El motor heurístico no encontró desviaciones significativas en este proceso." />
+                    <div className="flex items-start gap-2 p-3 bg-slate-50 border border-slate-100 rounded-lg text-xs text-slate-500">
+                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-slate-400" />
+                      Los factores ponderados estarán disponibles cuando el backend exponga el endpoint de análisis IA dedicado.
+                    </div>
+                  )}
+                  {analisis.trazabilidad.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-700 mb-3">Trazabilidad del análisis</h3>
+                      <ol className="space-y-2">
+                        {analisis.trazabilidad.map(paso => (
+                          <li key={paso.numero} className="flex items-start gap-3">
+                            <div className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs flex items-center justify-center shrink-0 mt-0.5">{paso.numero}</div>
+                            <div>
+                              <p className="text-sm font-medium text-slate-700">{paso.titulo}</p>
+                              <p className="text-xs text-slate-500">{paso.descripcion}</p>
+                            </div>
+                            <span className="ml-auto text-xs text-green-600 font-medium">{paso.estado}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
                   )}
                 </div>
               )}
-
-              {activeTab === 'detalles' && (
-                <div className="space-y-4">
-                  <h3 className="text-sm font-semibold text-slate-700 mb-3">Detalles Técnicos del Proceso</h3>
-                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 space-y-3">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm">
-                      <div><span className="text-slate-500">ID del Proceso:</span> <span className="font-medium text-slate-700">{contrato.idProceso}</span></div>
-                      <div><span className="text-slate-500">Estado:</span> <span className="font-medium text-slate-700">{contrato.estado}</span></div>
-                      <div><span className="text-slate-500">Fecha Pub:</span> <span className="font-medium text-slate-700">{contrato.fechaPublicacion}</span></div>
-                      <div><span className="text-slate-500">Valor Base:</span> <span className="font-medium text-slate-700">{formatCurrency(contrato.valorBase)}</span></div>
-                    </div>
-                    <div className="pt-3 border-t border-slate-200">
-                      <span className="text-slate-500 text-sm block mb-1">Objeto del Contrato:</span>
-                      <p className="text-sm text-slate-700">{contrato.objeto}</p>
-                    </div>
+              {activeTab === 'hallazgos' && (
+                analisis.hallazgos.length > 0 ? (
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-semibold text-slate-700 mb-3">Hallazgos principales</h3>
+                    {analisis.hallazgos.map(h => (
+                      <div key={h.id} className={`p-4 border-l-4 rounded-r-lg bg-slate-50 ${severityColor[h.severidad] ?? 'border-l-slate-300'}`}>
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="text-sm font-semibold text-slate-700">{h.titulo}</p>
+                          <span className="text-xs px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-500">{h.tipo}</span>
+                        </div>
+                        <p className="text-xs text-slate-600">{h.descripcion}</p>
+                      </div>
+                    ))}
                   </div>
-                </div>
+                ) : (
+                  <EmptyState title="Sin hallazgos" description="El motor heurístico no detectó banderas activas para este contrato." />
+                )
+              )}
+              {activeTab === 'evidencia' && (
+                analisis.evidencias.length > 0 ? (
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-semibold text-slate-700 mb-3">Evidencia textual destacada</h3>
+                    {analisis.evidencias.map((e, i) => (
+                      <div key={i} className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <p className="text-xs font-semibold text-yellow-800 mb-1.5">Campo: {e.campo}</p>
+                        <blockquote className="text-sm text-slate-700 italic border-l-2 border-yellow-400 pl-3">{e.texto}</blockquote>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState title="Sin evidencia textual" description="El backend no devolvió evidencia para este contrato." />
+                )
+              )}
+              {activeTab === 'recomendaciones' && (
+                analisis.recomendaciones.length > 0 ? (
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-700 mb-3">Recomendaciones</h3>
+                    <ol className="space-y-2">
+                      {analisis.recomendaciones.map((r, i) => (
+                        <li key={i} className="flex items-start gap-3 text-sm text-slate-700">
+                          <span className="font-bold text-blue-600 shrink-0">{i + 1}.</span> {r}
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                ) : (
+                  <EmptyState
+                    title="Recomendaciones pendientes"
+                    description="Las recomendaciones se generarán cuando el backend exponga el endpoint de análisis IA dedicado."
+                  />
+                )
               )}
             </div>
           </>
         )}
       </div>
 
-      {contrato && (
+      {analisis && (
         <aside className="w-72 shrink-0">
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4 sticky top-6">
-            <h3 className="text-sm font-semibold text-slate-700">Resultado del Perfilado</h3>
-            <ScoreCircle score={contrato.scoreRiesgo} riskCategory={contrato.riesgo} size="lg" />
-            <div className="space-y-3 pt-2">
-              <div className="p-3 bg-slate-50 rounded-lg">
-                <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Categoría</p>
-                <p className={`text-sm font-bold ${contrato.riesgo === 'CRÍTICO' || contrato.riesgo === 'ALTO' ? 'text-red-600' : 'text-green-600'}`}>
-                  RIESGO {contrato.riesgo}
-                </p>
+            <h3 className="text-sm font-semibold text-slate-700">Resultado del análisis</h3>
+            <ScoreCircle score={analisis.scoreTotal} riskCategory={analisis.riesgo} size="lg" />
+            {analisis.hallazgos.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase mb-1.5">Señales detectadas</p>
+                <div className="space-y-1">
+                  {analisis.hallazgos.slice(0, 3).map(h => (
+                    <div key={h.id} className="flex items-start gap-2 text-xs text-slate-600">
+                      <span className="mt-0.5 w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
+                      {h.titulo}
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="p-3 bg-slate-50 rounded-lg">
-                <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Recomendación</p>
-                <p className="text-xs text-slate-600">
-                  {contrato.scoreRiesgo >= 60 
-                    ? 'Requiere auditoría exhaustiva de los pliegos y cronograma.' 
-                    : 'Monitoreo preventivo estándar durante la ejecución.'}
-                </p>
-              </div>
-              <div className="space-y-2 pt-2">
-                <a
-                  href={`https://community.secop.gov.co/Public/Tendering/OpportunityDetail/Index?noticeGuid=${contrato.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full flex items-center justify-center gap-2 py-2 bg-blue-600 text-white text-xs rounded-lg font-medium hover:bg-blue-700 transition-colors"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" /> Ver en SECOP II
-                </a>
-                <button
-                  onClick={() => window.print()}
-                  className="w-full flex items-center justify-center gap-2 py-2 border border-slate-200 text-slate-600 text-xs rounded-lg font-medium hover:bg-slate-50 transition-colors"
-                >
-                  <Download className="w-3.5 h-3.5" /> Imprimir Reporte
-                </button>
-              </div>
+            )}
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Explicación IA</p>
+              <p className="text-xs text-slate-600 leading-relaxed line-clamp-4">{analisis.resumenEjecutivo}</p>
+            </div>
+            <div className="space-y-2 pt-2 border-t border-slate-100">
+              <a
+                href="https://community.secop.gov.co/STS/Users/Login/Index?SkinName=CCE&currentLanguage=es-CO&Page=login&Country=CO"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center justify-center gap-2 py-2 bg-blue-600 text-white text-xs rounded-lg font-medium hover:bg-blue-700"
+              >
+                <ExternalLink className="w-3.5 h-3.5" /> Ver proceso en SECOP
+              </a>
+              <button
+                onClick={handleDescargar}
+                className="w-full flex items-center justify-center gap-2 py-2 border border-slate-200 text-slate-600 text-xs rounded-lg font-medium hover:bg-slate-50"
+              >
+                <Download className="w-3.5 h-3.5" /> Descargar informe
+              </button>
             </div>
           </div>
         </aside>

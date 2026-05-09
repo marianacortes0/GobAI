@@ -1,10 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import CytoscapeComponent from 'react-cytoscapejs'
-// @ts-expect-error tipos no publicados
 import cytoscape from 'cytoscape'
-// @ts-expect-error tipos no publicados
 import coseBilkent from 'cytoscape-cose-bilkent'
-// @ts-expect-error tipos no publicados
 import navigator from 'cytoscape-navigator'
 import type { Core, EventObject } from 'cytoscape'
 import { transformToCytoscape } from '@/utils/transform-grafo'

@@ -1,6 +1,4 @@
-import type { Stylesheet } from 'cytoscape'
-
-export const stylesheet: Stylesheet[] = [
+export const stylesheet: any[] = [
   {
     selector: 'node',
     style: {

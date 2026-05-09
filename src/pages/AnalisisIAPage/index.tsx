@@ -4,7 +4,6 @@ import { KPICard } from '@/components/common/KPICard'
 import { ScoreCircle } from '@/components/common/ScoreCircle'
 import { LoadingSpinner } from '@/components/common/LoadingSpinner'
 import { EmptyState } from '@/components/common/EmptyState'
-import { HorizontalBarChart } from '@/components/charts/HorizontalBarChart'
 import { useContrato } from '@/hooks/useContratos'
 import { useToast } from '@/hooks/useToast'
 import { formatCurrency } from '@/utils/formatters'
@@ -18,7 +17,7 @@ export function AnalisisIAPage() {
   const [modo, setModo] = useState('Completo')
   const [activeTab, setActiveTab] = useState<TabId>('resumen')
   
-  const { data: contrato, isLoading, isError } = useContrato(searchId)
+  const { data: contrato, isLoading } = useContrato(searchId)
   const toast = useToast()
 
   function handleEjecutar() {
@@ -35,8 +34,6 @@ export function AnalisisIAPage() {
     { id: 'detalles', label: 'Detalles del Proceso' },
     { id: 'recomendaciones', label: 'Recomendaciones' },
   ]
-
-  const severityColor: Record<string, string> = { ALTA: 'border-l-red-500', MEDIA: 'border-l-orange-400', BAJA: 'border-l-yellow-400' }
 
   return (
     <div className="flex gap-6">
@@ -124,7 +121,7 @@ export function AnalisisIAPage() {
                     </p>
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-slate-700 mb-3">Distribución de Riesgo</h3>
+                    <h3 className="text-sm font-semibold text-slate-700 mb-3">Información del Contratante</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
                         <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Entidad Contratante</p>

@@ -5,63 +5,34 @@ import { ScoreCircle } from '@/components/common/ScoreCircle'
 import { LoadingSpinner } from '@/components/common/LoadingSpinner'
 import { EmptyState } from '@/components/common/EmptyState'
 import { HorizontalBarChart } from '@/components/charts/HorizontalBarChart'
-import { useEjecutarAnalisis } from '@/hooks/useAnalisis'
+import { useContrato } from '@/hooks/useContratos'
 import { useToast } from '@/hooks/useToast'
-import { analisisService } from '@/services/analisis.service'
-import type { Analisis } from '@/types/analisis.types'
+import { formatCurrency } from '@/utils/formatters'
 
-type TabId = 'resumen' | 'hallazgos' | 'evidencia' | 'recomendaciones'
+type TabId = 'resumen' | 'hallazgos' | 'detalles' | 'recomendaciones'
 
 export function AnalisisIAPage() {
   const [contratoId, setContratoId] = useState('')
-  const [modelo, setModelo] = useState('claude-sonnet-4-6')
+  const [searchId, setSearchId] = useState('')
+  const [modelo, setModelo] = useState('claude-3-5-sonnet-latest')
   const [modo, setModo] = useState('Completo')
-  const [analisis, setAnalisis] = useState<Analisis | null>(null)
   const [activeTab, setActiveTab] = useState<TabId>('resumen')
-  const { mutate: ejecutar, isPending } = useEjecutarAnalisis()
+  
+  const { data: contrato, isLoading, isError } = useContrato(searchId)
   const toast = useToast()
 
   function handleEjecutar() {
-    ejecutar(
-      { contratoId: contratoId.trim(), modelo, modo },
-      {
-        onSuccess: (data) => {
-          setAnalisis(data)
-          toast.success('Análisis ejecutado correctamente')
-        },
-        onError: (err: unknown) => {
-          setAnalisis(null)
-          const detail =
-            (err as { response?: { data?: { detail?: string } }; message?: string })?.response?.data?.detail ??
-            (err as { message?: string })?.message ??
-            'No se pudo ejecutar el análisis. Verifica el ID del contrato.'
-          toast.error(detail)
-        },
-      },
-    )
-  }
-
-  async function handleDescargar() {
-    if (!analisis) return
-    try {
-      const blob = await analisisService.descargarInforme(analisis.id)
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `informe-${analisis.id}.pdf`
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      window.URL.revokeObjectURL(url)
-    } catch {
-      toast.error('No se pudo descargar el informe')
+    if (contratoId.trim()) {
+      setSearchId(contratoId.trim())
+    } else {
+      toast.error('Ingresa un ID de contrato válido')
     }
   }
 
   const tabs: { id: TabId; label: string }[] = [
     { id: 'resumen', label: 'Resumen' },
     { id: 'hallazgos', label: 'Hallazgos' },
-    { id: 'evidencia', label: 'Evidencia textual' },
+    { id: 'detalles', label: 'Detalles del Proceso' },
     { id: 'recomendaciones', label: 'Recomendaciones' },
   ]
 
@@ -82,6 +53,7 @@ export function AnalisisIAPage() {
               <input
                 value={contratoId}
                 onChange={(e) => setContratoId(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleEjecutar()}
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:border-blue-400"
                 placeholder="CO1.REQ.10194417_10476"
               />
@@ -103,26 +75,18 @@ export function AnalisisIAPage() {
             </div>
             <button
               onClick={handleEjecutar}
-              disabled={isPending || !contratoId.trim()}
-              className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-semibold rounded-lg transition-colors"
+              disabled={isLoading || !contratoId.trim()}
+              className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-semibold rounded-lg transition-colors h-[38px]"
             >
-              {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-              {isPending ? 'Analizando...' : 'Ejecutar análisis'}
+              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+              {isLoading ? 'Analizando...' : 'Ejecutar análisis'}
             </button>
           </div>
-          {analisis && analisis.entradasAnalizadas.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              <p className="text-xs text-slate-500 font-medium mr-1">Entradas analizadas:</p>
-              {analisis.entradasAnalizadas.map((e, i) => (
-                <span key={i} className="px-2.5 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-full border border-blue-100">{e}</span>
-              ))}
-            </div>
-          )}
         </div>
 
-        {isPending && <LoadingSpinner className="!py-0" />}
+        {isLoading && <LoadingSpinner className="!py-0" />}
 
-        {!analisis && !isPending && (
+        {!contrato && !isLoading && (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
             <EmptyState
               title="Aún no has ejecutado un análisis"
@@ -131,13 +95,13 @@ export function AnalisisIAPage() {
           </div>
         )}
 
-        {analisis && !isPending && (
+        {contrato && !isLoading && (
           <>
             <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-              <KPICard title="Score total" value={analisis.scoreTotal} icon={TrendingUp} iconBg="bg-red-50" iconColor="text-red-500" valueColor="text-red-600" />
-              <KPICard title="Señales críticas" value={analisis.senalesCriticas} icon={AlertTriangle} iconBg="bg-orange-50" iconColor="text-orange-500" />
-              <KPICard title="Hallazgos IA" value={analisis.hallazgosIA} icon={Search} iconBg="bg-blue-50" iconColor="text-blue-500" />
-              <KPICard title="Confianza" value={`${analisis.confianza}%`} icon={TrendingUp} iconBg="bg-green-50" iconColor="text-green-500" />
+              <KPICard title="Score total" value={contrato.scoreRiesgo} icon={TrendingUp} iconBg="bg-red-50" iconColor="text-red-500" valueColor="text-red-600" />
+              <KPICard title="Señales críticas" value={contrato.senalesDetectadas.length} icon={AlertTriangle} iconBg="bg-orange-50" iconColor="text-orange-500" />
+              <KPICard title="Valor base" value={formatCurrency(contrato.valorBase)} icon={Search} iconBg="bg-blue-50" iconColor="text-blue-500" />
+              <KPICard title="Estado" value={contrato.estado} icon={TrendingUp} iconBg="bg-green-50" iconColor="text-green-500" />
             </div>
 
             <div className="flex border-b border-slate-200">
@@ -150,85 +114,73 @@ export function AnalisisIAPage() {
               ))}
             </div>
 
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 min-h-[300px]">
               {activeTab === 'resumen' && (
                 <div className="space-y-6">
                   <div>
                     <h3 className="text-sm font-semibold text-slate-700 mb-2">Resumen ejecutivo</h3>
-                    <p className="text-sm text-slate-600 leading-relaxed">{analisis.resumenEjecutivo}</p>
+                    <p className="text-sm text-slate-600 leading-relaxed">
+                      {contrato.evaluacion?.resumen || contrato.descripcionTecnica || 'No hay un resumen narrativo disponible para este contrato en este momento.'}
+                    </p>
                   </div>
-                  {analisis.factoresPonderados.length > 0 ? (
-                    <div>
-                      <h3 className="text-sm font-semibold text-slate-700 mb-3">Factores ponderados</h3>
-                      <HorizontalBarChart
-                        data={analisis.factoresPonderados.map(f => ({ label: `${f.nombre} (${f.peso}%)`, value: f.valor, max: 100, color: f.color }))}
-                        showPercent
-                      />
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-700 mb-3">Distribución de Riesgo</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                        <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Entidad Contratante</p>
+                        <p className="text-sm font-bold text-slate-800">{contrato.entidad}</p>
+                        <p className="text-xs text-slate-500">NIT: {contrato.nit}</p>
+                      </div>
+                      <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                        <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Modalidad</p>
+                        <p className="text-sm font-bold text-slate-800">{contrato.modalidad}</p>
+                        <p className="text-xs text-slate-500">Fecha: {contrato.fechaPublicacion}</p>
+                      </div>
                     </div>
-                  ) : (
-                    <div className="flex items-start gap-2 p-3 bg-slate-50 border border-slate-100 rounded-lg text-xs text-slate-500">
-                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-slate-400" />
-                      Los factores ponderados estarán disponibles cuando el backend exponga el endpoint de análisis IA dedicado.
-                    </div>
-                  )}
-                  {analisis.trazabilidad.length > 0 && (
-                    <div>
-                      <h3 className="text-sm font-semibold text-slate-700 mb-3">Trazabilidad del análisis</h3>
-                      <ol className="space-y-2">
-                        {analisis.trazabilidad.map(paso => (
-                          <li key={paso.numero} className="flex items-start gap-3">
-                            <div className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs flex items-center justify-center shrink-0 mt-0.5">{paso.numero}</div>
-                            <div>
-                              <p className="text-sm font-medium text-slate-700">{paso.titulo}</p>
-                              <p className="text-xs text-slate-500">{paso.descripcion}</p>
-                            </div>
-                            <span className="ml-auto text-xs text-green-600 font-medium">{paso.estado}</span>
-                          </li>
-                        ))}
-                      </ol>
-                    </div>
-                  )}
+                  </div>
                 </div>
               )}
               {activeTab === 'hallazgos' && (
-                analisis.hallazgos.length > 0 ? (
+                contrato.senalesDetectadas.length > 0 ? (
                   <div className="space-y-3">
-                    <h3 className="text-sm font-semibold text-slate-700 mb-3">Hallazgos principales</h3>
-                    {analisis.hallazgos.map(h => (
-                      <div key={h.id} className={`p-4 border-l-4 rounded-r-lg bg-slate-50 ${severityColor[h.severidad] ?? 'border-l-slate-300'}`}>
+                    <h3 className="text-sm font-semibold text-slate-700 mb-3">Banderas Rojas Detectadas</h3>
+                    {contrato.senalesDetectadas.map((s, i) => (
+                      <div key={i} className={`p-4 border-l-4 rounded-r-lg bg-red-50 border-l-red-500`}>
                         <div className="flex items-center gap-2 mb-1">
-                          <p className="text-sm font-semibold text-slate-700">{h.titulo}</p>
-                          <span className="text-xs px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-500">{h.tipo}</span>
+                          <p className="text-sm font-semibold text-slate-700">{s}</p>
+                          <span className="text-xs px-2 py-0.5 bg-white border border-red-200 rounded text-red-500">CRÍTICO</span>
                         </div>
-                        <p className="text-xs text-slate-600">{h.descripcion}</p>
+                        <p className="text-xs text-slate-600">Se detectó una posible irregularidad o patrón de riesgo en este factor contractual.</p>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <EmptyState title="Sin hallazgos" description="El motor heurístico no detectó banderas activas para este contrato." />
+                  <EmptyState title="Sin hallazgos" description="El motor de riesgo no detectó banderas activas para este contrato." />
                 )
               )}
-              {activeTab === 'evidencia' && (
-                analisis.evidencias.length > 0 ? (
-                  <div className="space-y-3">
-                    <h3 className="text-sm font-semibold text-slate-700 mb-3">Evidencia textual destacada</h3>
-                    {analisis.evidencias.map((e, i) => (
-                      <div key={i} className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                        <p className="text-xs font-semibold text-yellow-800 mb-1.5">Campo: {e.campo}</p>
-                        <blockquote className="text-sm text-slate-700 italic border-l-2 border-yellow-400 pl-3">{e.texto}</blockquote>
-                      </div>
-                    ))}
+              {activeTab === 'detalles' && (
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-slate-700 mb-3">Detalles Técnicos</h3>
+                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm">
+                      <div><span className="text-slate-500">ID del Proceso:</span> <span className="font-medium text-slate-700">{contrato.idProceso}</span></div>
+                      <div><span className="text-slate-500">Estado:</span> <span className="font-medium text-slate-700">{contrato.estado}</span></div>
+                      <div><span className="text-slate-500">Fecha Pub:</span> <span className="font-medium text-slate-700">{contrato.fechaPublicacion}</span></div>
+                      <div><span className="text-slate-500">Valor Base:</span> <span className="font-medium text-slate-700">{formatCurrency(contrato.valorBase)}</span></div>
+                    </div>
+                    <div className="pt-3 border-t border-slate-200">
+                      <span className="text-slate-500 text-sm block mb-1">Objeto del Contrato:</span>
+                      <p className="text-sm text-slate-700">{contrato.objeto}</p>
+                    </div>
                   </div>
-                ) : (
-                  <EmptyState title="Sin evidencia textual" description="El backend no devolvió evidencia para este contrato." />
-                )
+                </div>
               )}
               {activeTab === 'recomendaciones' && (
-                analisis.recomendaciones.length > 0 ? (
+                (contrato.evaluacion?.recomendaciones?.length ?? 0) > 0 ? (
                   <div>
-                    <h3 className="text-sm font-semibold text-slate-700 mb-3">Recomendaciones</h3>
+                    <h3 className="text-sm font-semibold text-slate-700 mb-3">Recomendaciones de Auditoría</h3>
                     <ol className="space-y-2">
-                      {analisis.recomendaciones.map((r, i) => (
+                      {contrato.evaluacion!.recomendaciones.map((r, i) => (
                         <li key={i} className="flex items-start gap-3 text-sm text-slate-700">
                           <span className="font-bold text-blue-600 shrink-0">{i + 1}.</span> {r}
                         </li>
@@ -237,8 +189,8 @@ export function AnalisisIAPage() {
                   </div>
                 ) : (
                   <EmptyState
-                    title="Recomendaciones pendientes"
-                    description="Las recomendaciones se generarán cuando el backend exponga el endpoint de análisis IA dedicado."
+                    title="Procedimiento Estándar"
+                    description={contrato.scoreRiesgo > 60 ? "Se recomienda una revisión exhaustiva de los pliegos de condiciones y el cronograma." : "Se recomienda monitoreo preventivo durante la ejecución del contrato."}
                   />
                 )
               )}
@@ -247,31 +199,21 @@ export function AnalisisIAPage() {
         )}
       </div>
 
-      {analisis && (
+      {contrato && (
         <aside className="w-72 shrink-0">
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4 sticky top-6">
             <h3 className="text-sm font-semibold text-slate-700">Resultado del análisis</h3>
-            <ScoreCircle score={analisis.scoreTotal} riskCategory={analisis.riesgo} size="lg" />
-            {analisis.hallazgos.length > 0 && (
-              <div>
-                <p className="text-xs font-semibold text-slate-500 uppercase mb-1.5">Señales detectadas</p>
-                <div className="space-y-1">
-                  {analisis.hallazgos.slice(0, 3).map(h => (
-                    <div key={h.id} className="flex items-start gap-2 text-xs text-slate-600">
-                      <span className="mt-0.5 w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
-                      {h.titulo}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            <ScoreCircle score={contrato.scoreRiesgo} riskCategory={contrato.riesgo} size="lg" />
+            
             <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Explicación IA</p>
-              <p className="text-xs text-slate-600 leading-relaxed line-clamp-4">{analisis.resumenEjecutivo}</p>
+              <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Análisis de Riesgo</p>
+              <p className="text-xs text-slate-600 leading-relaxed line-clamp-4">
+                El proceso presenta un nivel de riesgo {contrato.riesgo} basado en {contrato.senalesDetectadas.length} señales detectadas.
+              </p>
             </div>
             <div className="space-y-2 pt-2 border-t border-slate-100">
               <a
-                href="https://community.secop.gov.co/STS/Users/Login/Index?SkinName=CCE&currentLanguage=es-CO&Page=login&Country=CO"
+                href={`https://community.secop.gov.co/Public/Tendering/OpportunityDetail/Index?noticeGuid=${contrato.id}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full flex items-center justify-center gap-2 py-2 bg-blue-600 text-white text-xs rounded-lg font-medium hover:bg-blue-700"
@@ -279,7 +221,7 @@ export function AnalisisIAPage() {
                 <ExternalLink className="w-3.5 h-3.5" /> Ver proceso en SECOP
               </a>
               <button
-                onClick={handleDescargar}
+                onClick={() => window.print()}
                 className="w-full flex items-center justify-center gap-2 py-2 border border-slate-200 text-slate-600 text-xs rounded-lg font-medium hover:bg-slate-50"
               >
                 <Download className="w-3.5 h-3.5" /> Descargar informe

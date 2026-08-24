@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useParams } from 'react-router-dom'
 import { Play, Download, ExternalLink, Loader2, AlertTriangle, Search, TrendingUp } from 'lucide-react'
 import { KPICard } from '@/components/common/KPICard'
 import { ScoreCircle } from '@/components/common/ScoreCircle'
@@ -7,18 +8,42 @@ import { EmptyState } from '@/components/common/EmptyState'
 import { useContrato } from '@/hooks/useContratos'
 import { useToast } from '@/hooks/useToast'
 import { formatCurrency } from '@/utils/formatters'
+import { reportesService } from '@/services/reportes.service'
+import { flagLabel, accionesSugeridas, severidadFromScore } from '@/services/alertas.service'
 
 type TabId = 'resumen' | 'hallazgos' | 'detalles' | 'recomendaciones'
 
+function idFromRoute(id: string | undefined): string {
+  return id && id !== 'nuevo' ? decodeURIComponent(id) : ''
+}
+
 export function AnalisisIAPage() {
-  const [contratoId, setContratoId] = useState('')
-  const [searchId, setSearchId] = useState('')
-  const [modelo, setModelo] = useState('claude-3-5-sonnet-latest')
-  const [modo, setModo] = useState('Completo')
+  const { id: routeId } = useParams<{ id: string }>()
+  const [contratoId, setContratoId] = useState(() => idFromRoute(routeId))
+  const [searchId, setSearchId] = useState(() => idFromRoute(routeId))
   const [activeTab, setActiveTab] = useState<TabId>('resumen')
-  
+  const [descargandoInforme, setDescargandoInforme] = useState(false)
+
   const { data: contrato, isLoading } = useContrato(searchId)
   const toast = useToast()
+
+  async function handleDescargarInforme() {
+    if (!contrato) return
+    setDescargandoInforme(true)
+    try {
+      const blob = await reportesService.descargarPDF(contrato.id)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `forense_${contrato.id}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      toast.error('No se pudo generar el informe forense en PDF')
+    } finally {
+      setDescargandoInforme(false)
+    }
+  }
 
   function handleEjecutar() {
     if (contratoId.trim()) {
@@ -40,7 +65,7 @@ export function AnalisisIAPage() {
       <div className="flex-1 min-w-0 space-y-5">
         <div>
           <h1 className="text-xl font-bold text-slate-800">Análisis IA</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Examina hallazgos, evidencia textual y explicabilidad generada por IA sobre procesos contractuales</p>
+          <p className="text-sm text-slate-500 mt-0.5">Consulta el análisis de riesgo, hallazgos y evidencia ya calculados para un proceso contractual</p>
         </div>
 
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
@@ -55,28 +80,13 @@ export function AnalisisIAPage() {
                 placeholder="CO1.REQ.10194417_10476"
               />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Modelo IA</label>
-              <select value={modelo} onChange={(e) => setModelo(e.target.value)} className="px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-blue-400">
-                <option value="claude-3-5-sonnet-latest">Claude Sonnet 3.5</option>
-                <option value="claude-3-opus-latest">Claude Opus 3</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Modo análisis</label>
-              <select value={modo} onChange={(e) => setModo(e.target.value)} className="px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-blue-400">
-                <option>Completo</option>
-                <option>Rápido</option>
-                <option>Focalizado</option>
-              </select>
-            </div>
             <button
               onClick={handleEjecutar}
               disabled={isLoading || !contratoId.trim()}
               className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-semibold rounded-lg transition-colors h-[38px]"
             >
               {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-              {isLoading ? 'Analizando...' : 'Ejecutar análisis'}
+              {isLoading ? 'Buscando...' : 'Buscar análisis'}
             </button>
           </div>
         </div>
@@ -86,8 +96,8 @@ export function AnalisisIAPage() {
         {!contrato && !isLoading && (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
             <EmptyState
-              title="Aún no has ejecutado un análisis"
-              description="Ingresa un ID de contrato o proceso (formato CO1.REQ.XXXXXXXX_XXXXX) y pulsa 'Ejecutar análisis'."
+              title="Aún no has consultado un análisis"
+              description="Ingresa un ID de contrato o proceso (formato CO1.REQ.XXXXXXXX_XXXXX) y pulsa 'Buscar análisis'."
             />
           </div>
         )}
@@ -96,7 +106,7 @@ export function AnalisisIAPage() {
           <>
             <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
               <KPICard title="Score total" value={contrato.scoreRiesgo} icon={TrendingUp} iconBg="bg-red-50" iconColor="text-red-500" valueColor="text-red-600" />
-              <KPICard title="Señales críticas" value={contrato.senalesDetectadas.length} icon={AlertTriangle} iconBg="bg-orange-50" iconColor="text-orange-500" />
+              <KPICard title="Señales detectadas" value={contrato.senalesDetectadas.length} icon={AlertTriangle} iconBg="bg-orange-50" iconColor="text-orange-500" />
               <KPICard title="Valor base" value={formatCurrency(contrato.valorBase)} icon={Search} iconBg="bg-blue-50" iconColor="text-blue-500" />
               <KPICard title="Estado" value={contrato.estado} icon={TrendingUp} iconBg="bg-green-50" iconColor="text-green-500" />
             </div>
@@ -141,15 +151,18 @@ export function AnalisisIAPage() {
                 contrato.senalesDetectadas.length > 0 ? (
                   <div className="space-y-3">
                     <h3 className="text-sm font-semibold text-slate-700 mb-3">Banderas Rojas Detectadas</h3>
-                    {contrato.senalesDetectadas.map((s, i) => (
-                      <div key={i} className={`p-4 border-l-4 rounded-r-lg bg-red-50 border-l-red-500`}>
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="text-sm font-semibold text-slate-700">{s}</p>
-                          <span className="text-xs px-2 py-0.5 bg-white border border-red-200 rounded text-red-500">CRÍTICO</span>
+                    {contrato.senalesDetectadas.map((s, i) => {
+                      const severidad = severidadFromScore(contrato.scoreRiesgo)
+                      return (
+                        <div key={i} className="p-4 border-l-4 rounded-r-lg bg-red-50 border-l-red-500">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="text-sm font-semibold text-slate-700">{flagLabel(s)}</p>
+                            <span className="text-xs px-2 py-0.5 bg-white border border-red-200 rounded text-red-500">{severidad}</span>
+                          </div>
+                          <p className="text-xs text-slate-600">Se detectó una posible irregularidad o patrón de riesgo en este factor contractual.</p>
                         </div>
-                        <p className="text-xs text-slate-600">Se detectó una posible irregularidad o patrón de riesgo en este factor contractual.</p>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 ) : (
                   <EmptyState title="Sin hallazgos" description="El motor de riesgo no detectó banderas activas para este contrato." />
@@ -173,11 +186,11 @@ export function AnalisisIAPage() {
                 </div>
               )}
               {activeTab === 'recomendaciones' && (
-                (contrato.evaluacion?.recomendaciones?.length ?? 0) > 0 ? (
+                contrato.senalesDetectadas.length > 0 ? (
                   <div>
                     <h3 className="text-sm font-semibold text-slate-700 mb-3">Recomendaciones de Auditoría</h3>
                     <ol className="space-y-2">
-                      {contrato.evaluacion!.recomendaciones.map((r, i) => (
+                      {accionesSugeridas(contrato.senalesDetectadas).map((r, i) => (
                         <li key={i} className="flex items-start gap-3 text-sm text-slate-700">
                           <span className="font-bold text-blue-600 shrink-0">{i + 1}.</span> {r}
                         </li>
@@ -218,10 +231,12 @@ export function AnalisisIAPage() {
                 <ExternalLink className="w-3.5 h-3.5" /> Ver proceso en SECOP
               </a>
               <button
-                onClick={() => window.print()}
-                className="w-full flex items-center justify-center gap-2 py-2 border border-slate-200 text-slate-600 text-xs rounded-lg font-medium hover:bg-slate-50"
+                onClick={handleDescargarInforme}
+                disabled={descargandoInforme}
+                className="w-full flex items-center justify-center gap-2 py-2 border border-slate-200 text-slate-600 text-xs rounded-lg font-medium hover:bg-slate-50 disabled:opacity-60"
               >
-                <Download className="w-3.5 h-3.5" /> Descargar informe
+                {descargandoInforme ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                {descargandoInforme ? 'Generando...' : 'Descargar informe forense'}
               </button>
             </div>
           </div>

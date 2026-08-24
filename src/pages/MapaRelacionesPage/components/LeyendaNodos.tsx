@@ -3,11 +3,8 @@ import { NODO_COLORS } from '@/utils/constants'
 const ITEMS = [
   { color: NODO_COLORS.entidad, label: 'Entidad central' },
   { color: NODO_COLORS.proveedor, label: 'Proveedor' },
-  { color: NODO_COLORS.contrato, label: 'Contrato' },
   { color: NODO_COLORS.persona, label: 'Persona' },
-  { color: NODO_COLORS.consorcio, label: 'UT / Consorcio' },
   { color: NODO_COLORS.sancion, label: 'Sanción / Multa' },
-  { color: NODO_COLORS.pep, label: 'Alerta PEP' },
 ]
 
 export function LeyendaNodos() {
@@ -23,7 +20,7 @@ export function LeyendaNodos() {
         ))}
       </ul>
       <p className="mt-3 border-t border-slate-700 pt-2 text-[10px] text-slate-500">
-        — — — relación legal · ─── adjudicación · <span className="text-red-400">───</span> sanción
+        — — — representante / socio · ─── adjudicación · <span className="text-red-400">───</span> sanción
       </p>
     </div>
   )

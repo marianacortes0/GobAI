@@ -16,6 +16,7 @@ export interface Alerta {
   municipio?: string
   scoreRiesgo: number
   riesgo: RiskLevel
+  flags: string[]
   accionesSugeridas: string[]
   distribucionRiesgo?: {
     critico: number

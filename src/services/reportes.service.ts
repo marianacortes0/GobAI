@@ -1,5 +1,5 @@
 import api from './api'
-import type { Reporte, ReporteCreate, ReporteStats } from '@/types/reporte.types'
+import type { Reporte, ReporteCreate, ReporteStats, ReporteAnalitica } from '@/types/reporte.types'
 import type { PaginatedResponse } from '@/types/shared.types'
 
 type BackendReport = {
@@ -11,6 +11,10 @@ type BackendReport = {
   cobertura?: string
   fecha_generacion: string
   usuario_nombre?: string
+  descargas: number
+  contratos_analizados: number
+  alertas_incluidas: number
+  analizado_con_ia: boolean
 }
 
 type BackendReportStats = {
@@ -18,6 +22,12 @@ type BackendReportStats = {
   programados: number
   descargas: number
   riesgo_promedio: number
+}
+
+type BackendAnalitica = {
+  indicadores_senales: { tipo_flag: string; label: string; count: number; percentage: number }[]
+  alertas_por_entidad: { entidad: string; count: number }[]
+  evolucion_riesgo: { semana: string; score_promedio: number }[]
 }
 
 function mapReporte(r: BackendReport): Reporte {
@@ -30,6 +40,18 @@ function mapReporte(r: BackendReport): Reporte {
     cobertura: r.cobertura,
     fechaGeneracion: r.fecha_generacion,
     usuarioNombre: r.usuario_nombre,
+    descargas: r.descargas ?? 0,
+    contratosAnalizados: r.contratos_analizados ?? 0,
+    alertasIncluidas: r.alertas_incluidas ?? 0,
+    analizadoConIA: r.analizado_con_ia ?? false,
+  }
+}
+
+function mapAnalitica(d: BackendAnalitica): ReporteAnalitica {
+  return {
+    indicadoresSenales: d.indicadores_senales.map((i) => ({ tipoFlag: i.tipo_flag, label: i.label, count: i.count, percentage: i.percentage })),
+    alertasPorEntidad: d.alertas_por_entidad.map((a) => ({ entidad: a.entidad, count: a.count })),
+    evolucionRiesgo: d.evolucion_riesgo.map((e) => ({ semana: e.semana, scorePromedio: e.score_promedio })),
   }
 }
 
@@ -53,6 +75,11 @@ export const reportesService = {
       descargas: data.descargas,
       riesgoPromedio: data.riesgo_promedio,
     }
+  },
+
+  async getAnalitica(departamento?: string): Promise<ReporteAnalitica> {
+    const { data } = await api.get<BackendAnalitica>('/reportes/analitica', { params: departamento ? { departamento } : {} })
+    return mapAnalitica(data)
   },
 
   async generarReporte(config: ReporteCreate): Promise<Reporte> {

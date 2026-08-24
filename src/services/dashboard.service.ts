@@ -1,10 +1,14 @@
 import api from './api'
 import type { DashboardStats, Contrato, TopEntidad } from '@/types/contrato.types'
 import type { Filters, PaginatedResponse } from '@/types/shared.types'
+import { riesgoFromScore } from './alertas.service'
 
 type BackendStats = {
   total_contratos: number
   presupuesto_total: number
+  entidades_totales: number
+  score_promedio: number
+  ultima_actualizacion: string | null
   distribucion_riesgo: Array<{ category: string; count: number; percentage: number }>
   top_entidades_riesgo: Array<{
     nombre: string
@@ -20,7 +24,6 @@ type BackendStats = {
     cantidad_contratos: number
     score_promedio: number
   }>
-  contratos_por_mes: Record<string, number>
 }
 
 type BackendContract = {
@@ -33,6 +36,7 @@ type BackendContract = {
   score_final: number
   categoria_riesgo: string
   fecha_publicacion: string | null
+  num_senales?: number
 }
 
 function mapContract(c: BackendContract): Contrato {
@@ -48,9 +52,10 @@ function mapContract(c: BackendContract): Contrato {
     valorBase: c.precio_base ?? 0,
     estado: 'PUBLICADO',
     fechaPublicacion: c.fecha_publicacion ?? '',
-    riesgo: (c.categoria_riesgo === 'DESCONOCIDO' ? 'BAJO' : c.categoria_riesgo) as Contrato['riesgo'],
+    riesgo: riesgoFromScore(c.score_final ?? 0, c.categoria_riesgo),
     scoreRiesgo: c.score_final ?? 0,
     senalesDetectadas: [],
+    numSenales: c.num_senales ?? 0,
     tieneAlertas: (c.score_final ?? 0) >= 50,
   }
 }
@@ -75,7 +80,9 @@ export const dashboardService = {
       presupuestoTotal: data.presupuesto_total ?? 0,
       riesgoAlto: getCount('ALTO'),
       riesgoMedio: getCount('MEDIO'),
-      entidadesMonitoreadas: data.top_entidades_riesgo?.length ?? 0,
+      entidadesMonitoreadas: data.entidades_totales ?? 0,
+      scorePromedio: Math.round(data.score_promedio ?? 0),
+      ultimaActualizacion: data.ultima_actualizacion ?? null,
       distribucionRiesgo: {
         critico: getCount('CRITICO'),
         alto: getCount('ALTO'),
@@ -84,7 +91,6 @@ export const dashboardService = {
       },
       topEntidadesRiesgo: (data.top_entidades_riesgo ?? []).map(mapTopEntidad),
       topEntidadesPresupuesto: (data.top_entidades_presupuesto ?? []).map(mapTopEntidad),
-      contratosPorMes: data.contratos_por_mes ?? {},
     }
   },
 

@@ -35,17 +35,11 @@ export const stylesheet: any[] = [
     },
   },
   { selector: 'node[tipo="proveedor"]', style: { 'background-color': '#22D3EE', 'border-color': '#67E8F9' } },
-  {
-    selector: 'node[tipo="contrato"]',
-    style: { 'background-color': '#C084FC', 'border-color': '#D8B4FE', shape: 'round-rectangle', width: 70, height: 48 },
-  },
   { selector: 'node[tipo="persona"]', style: { 'background-color': '#F0ABFC', 'border-color': '#F5D0FE', shape: 'ellipse' } },
-  { selector: 'node[tipo="consorcio"]', style: { 'background-color': '#4ADE80', 'border-color': '#86EFAC', shape: 'hexagon' } },
   {
     selector: 'node[tipo="sancion"]',
     style: { 'background-color': '#FB7185', 'border-color': '#FDA4AF', shape: 'triangle', width: 52, height: 52 },
   },
-  { selector: 'node[tipo="pep"]', style: { 'background-color': '#FCD34D', 'border-color': '#FDE68A', shape: 'star', width: 52, height: 52 } },
   {
     selector: 'node[nivel_riesgo="alto"]',
     style: { 'border-color': '#FCA5A5', 'border-width': 4 },
@@ -67,11 +61,11 @@ export const stylesheet: any[] = [
     },
   },
   {
-    selector: 'edge[tipo="representante_legal"], edge[tipo="miembro_de"]',
+    selector: 'edge[tipo="representante_legal"], edge[tipo="socio"]',
     style: { 'line-style': 'dashed', 'line-color': '#C4B5FD', 'target-arrow-color': '#C4B5FD' },
   },
   {
-    selector: 'edge[tipo="sancionado"], edge[tipo="alerta"]',
+    selector: 'edge[tipo="sancion"]',
     style: { 'line-color': '#FB7185', 'target-arrow-color': '#FB7185', width: 2.4 },
   },
   {

@@ -36,6 +36,7 @@ export interface Contrato {
   riesgo: RiskLevel
   scoreRiesgo: number
   senalesDetectadas: string[]
+  numSenales?: number
   tieneAlertas: boolean
   urlSecop?: string
 }
@@ -59,6 +60,8 @@ export interface DashboardStats {
   riesgoAlto: number
   riesgoMedio: number
   entidadesMonitoreadas: number
+  scorePromedio: number
+  ultimaActualizacion: string | null
   distribucionRiesgo: {
     critico: number
     alto: number
@@ -67,5 +70,4 @@ export interface DashboardStats {
   }
   topEntidadesRiesgo: TopEntidad[]
   topEntidadesPresupuesto: TopEntidad[]
-  contratosPorMes: Record<string, number>
 }

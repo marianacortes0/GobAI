@@ -7,22 +7,15 @@ import { HorizontalBarChart } from '@/components/charts/HorizontalBarChart'
 import { LineChart } from '@/components/charts/LineChart'
 import { RISK_COLORS, DEPARTAMENTOS } from '@/utils/constants'
 import { formatDate, formatCurrency } from '@/utils/formatters'
-import { useReportes, useReporteStats, useGenerarReporte } from '@/hooks/useReportes'
+import { useReportes, useReporteStats, useReporteAnalitica, useGenerarReporte } from '@/hooks/useReportes'
 import { useDashboardStats } from '@/hooks/useDashboard'
 import { useAlertaStats, useAlertas } from '@/hooks/useAlertas'
 import { reportesService } from '@/services/reportes.service'
-import type { ReportType, ReportFormat, ReportPeriod } from '@/types/reporte.types'
+import type { Reporte, ReportType, ReportFormat, ReportPeriod } from '@/types/reporte.types'
 
 type TabId = 'resumen' | 'contratacion' | 'alertas' | 'ia' | 'historico'
 
-const MES_LABELS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
-
-function mesLabel(key: string): string {
-  const m = key.match(/(\d{4})-(\d{2})/)
-  if (!m) return key
-  const idx = Math.max(0, Math.min(11, parseInt(m[2], 10) - 1))
-  return `${MES_LABELS[idx]} ${m[1].slice(2)}`
-}
+const INDICADOR_COLORS = ['#EF4444', '#F97316', '#F59E0B', '#3B82F6', '#8B5CF6', '#10B981', '#EC4899', '#6366F1']
 
 export function ReportesPage() {
   const [activeTab, setActiveTab] = useState<TabId>('resumen')
@@ -32,13 +25,13 @@ export function ReportesPage() {
   const [formato, setFormato] = useState<ReportFormat>('PDF')
   const [descargando, setDescargando] = useState(false)
   const [copiado, setCopiado] = useState(false)
-  const [lastReporteId, setLastReporteId] = useState<number | null>(null)
-  const [lastReporteFormato, setLastReporteFormato] = useState<ReportFormat | null>(null)
+  const [lastReporte, setLastReporte] = useState<Reporte | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   const { data: stats, isLoading: statsLoading } = useReporteStats()
   const { data: reportesData } = useReportes()
-  const { data: dashboard, isLoading: dashboardLoading } = useDashboardStats()
+  const { data: dashboard } = useDashboardStats()
+  const { data: analitica, isLoading: analiticaLoading } = useReporteAnalitica(departamento || undefined)
   const { data: alertaStats } = useAlertaStats()
   const { data: alertasList } = useAlertas({ limit: 5 })
   const { mutate: generarReporte, isPending: generando } = useGenerarReporte()
@@ -50,8 +43,7 @@ export function ReportesPage() {
       { nombre, tipo, formato, periodo, cobertura: departamento || undefined },
       {
         onSuccess: (r) => {
-          setLastReporteId(r.id)
-          setLastReporteFormato(r.formato)
+          setLastReporte(r)
           setActiveTab('historico')
         },
         onError: (err: unknown) => {
@@ -75,10 +67,10 @@ export function ReportesPage() {
     setDescargando(true)
     setErrorMsg(null)
     try {
-      if (lastReporteId) {
-        const blob = await reportesService.descargar(lastReporteId)
-        const ext = (lastReporteFormato ?? formato).toLowerCase()
-        triggerDownload(blob, `reporte_${lastReporteId}.${ext}`)
+      if (lastReporte) {
+        const blob = await reportesService.descargar(lastReporte.id)
+        const ext = lastReporte.formato.toLowerCase()
+        triggerDownload(blob, `reporte_${lastReporte.id}.${ext}`)
       } else {
         const blob = await reportesService.descargarExcel()
         triggerDownload(blob, 'reporte_gobia.xlsx')
@@ -118,29 +110,19 @@ export function ReportesPage() {
     { name: 'Bajo', value: distribucion.bajo, color: RISK_COLORS['BAJO'] },
   ]), [distribucion.critico, distribucion.alto, distribucion.medio, distribucion.bajo])
 
-  const evolucionData = useMemo(() => {
-    const map = dashboard?.contratosPorMes ?? {}
-    return Object.entries(map)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .slice(-6)
-      .map(([k, v]) => ({ mes: mesLabel(k), contratos: v }))
-  }, [dashboard?.contratosPorMes])
+  const evolucionRiesgoData = analitica?.evolucionRiesgo ?? []
 
   const totalAlertas = alertaStats?.total ?? 0
-  const alertasRevisadasPct = totalAlertas > 0
-    ? Math.round(((alertaStats?.revisadas ?? 0) / totalAlertas) * 100)
-    : 0
   const riesgoAltoPct = totalDistribucion > 0
     ? Math.round(((distribucion.alto + distribucion.critico) / totalDistribucion) * 100)
     : 0
 
-  const indicadores = useMemo(() => ([
-    { nombre: 'Contratos en riesgo alto/crítico', value: riesgoAltoPct, max: 100, color: '#EF4444' },
-    { nombre: 'Alertas revisadas', value: alertasRevisadasPct, max: 100, color: '#10B981' },
-    { nombre: 'Confianza del modelo IA', value: 91, max: 100, color: '#3B82F6' },
-    { nombre: 'Cobertura SECOP II', value: 96, max: 100, color: '#8B5CF6' },
-    { nombre: 'Entidades monitoreadas', value: dashboard?.entidadesMonitoreadas ?? 0, max: Math.max(50, (dashboard?.entidadesMonitoreadas ?? 0)), color: '#F59E0B' },
-  ]), [riesgoAltoPct, alertasRevisadasPct, dashboard?.entidadesMonitoreadas])
+  const indicadores = useMemo(() => (analitica?.indicadoresSenales ?? []).map((ind, i) => ({
+    nombre: ind.label,
+    value: ind.percentage,
+    max: 100,
+    color: INDICADOR_COLORS[i % INDICADOR_COLORS.length],
+  })), [analitica?.indicadoresSenales])
 
   const topEntidades = dashboard?.topEntidadesRiesgo ?? []
   const maxEntidadContratos = topEntidades.reduce((m, e) => Math.max(m, e.cantidad_contratos), 1)
@@ -307,8 +289,10 @@ export function ReportesPage() {
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-slate-700 mb-3">Indicadores clave</h3>
-                {dashboardLoading ? (
+                {analiticaLoading ? (
                   <div className="h-32 bg-slate-100 rounded-lg animate-pulse" />
+                ) : indicadores.length === 0 ? (
+                  <p className="text-xs text-slate-400 py-4 text-center">Sin señales de riesgo detectadas.</p>
                 ) : (
                   <HorizontalBarChart data={indicadores.map(i => ({ label: i.nombre, value: i.value, max: i.max, color: i.color }))} showPercent />
                 )}
@@ -323,11 +307,11 @@ export function ReportesPage() {
                   )}
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-slate-700 mb-3">Evolución de contratos</h3>
-                  {evolucionData.length === 0 ? (
-                    <p className="text-xs text-slate-400 py-8 text-center">Sin histórico mensual.</p>
+                  <h3 className="text-sm font-semibold text-slate-700 mb-3">Evolución del riesgo</h3>
+                  {evolucionRiesgoData.length === 0 ? (
+                    <p className="text-xs text-slate-400 py-8 text-center">Sin histórico semanal con fecha de publicación.</p>
                   ) : (
-                    <LineChart data={evolucionData} xKey="mes" yKey="contratos" color="#3B82F6" label="Contratos" />
+                    <LineChart data={evolucionRiesgoData.map(e => ({ semana: e.semana, scorePromedio: e.scorePromedio }))} xKey="semana" yKey="scorePromedio" color="#3B82F6" label="Score promedio" />
                   )}
                 </div>
               </div>
@@ -349,13 +333,28 @@ export function ReportesPage() {
                   </ol>
                 )}
               </div>
-              <div>
-                <h3 className="text-sm font-semibold text-slate-700 mb-3">Top entidades por riesgo</h3>
-                {topEntidades.length === 0 ? (
-                  <p className="text-xs text-slate-400 py-4 text-center">Sin entidades para mostrar.</p>
-                ) : (
-                  <HorizontalBarChart data={topEntidades.slice(0, 5).map(e => ({ label: e.nombre, value: e.cantidad_contratos, max: maxEntidadContratos, color: '#F97316' }))} />
-                )}
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-700 mb-3">Top entidades por riesgo</h3>
+                  {topEntidades.length === 0 ? (
+                    <p className="text-xs text-slate-400 py-4 text-center">Sin entidades para mostrar.</p>
+                  ) : (
+                    <HorizontalBarChart data={topEntidades.slice(0, 5).map(e => ({ label: e.nombre, value: e.cantidad_contratos, max: maxEntidadContratos, color: '#F97316' }))} />
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-700 mb-3">Alertas por entidad</h3>
+                  {(analitica?.alertasPorEntidad ?? []).length === 0 ? (
+                    <p className="text-xs text-slate-400 py-4 text-center">Sin alertas para mostrar.</p>
+                  ) : (
+                    <HorizontalBarChart data={(analitica?.alertasPorEntidad ?? []).map(a => ({
+                      label: a.entidad,
+                      value: a.count,
+                      max: Math.max(...(analitica?.alertasPorEntidad ?? []).map(x => x.count), 1),
+                      color: '#DC2626',
+                    }))} />
+                  )}
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 {insights.map((ins, i) => (
@@ -455,14 +454,10 @@ export function ReportesPage() {
           {activeTab === 'ia' && (
             <div className="space-y-5">
               <h3 className="text-sm font-semibold text-slate-700">Análisis IA agregado</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <div className="p-3 bg-slate-50 rounded-lg">
                   <p className="text-xs text-slate-500">Riesgo promedio</p>
                   <p className="text-xl font-bold text-slate-800">{(stats?.riesgoPromedio ?? 0).toFixed(1)}/100</p>
-                </div>
-                <div className="p-3 bg-slate-50 rounded-lg">
-                  <p className="text-xs text-slate-500">Confianza modelo</p>
-                  <p className="text-xl font-bold text-blue-600">91%</p>
                 </div>
                 <div className="p-3 bg-slate-50 rounded-lg">
                   <p className="text-xs text-slate-500">Contratos analizados</p>
@@ -517,13 +512,23 @@ export function ReportesPage() {
 
       <aside className="w-72 shrink-0">
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4 sticky top-6">
-          <h3 className="text-sm font-semibold text-slate-700">Detalle del reporte</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-slate-700">Detalle del reporte</h3>
+            {lastReporte && <span className="px-2 py-0.5 bg-green-50 text-green-700 border border-green-100 rounded-full text-[10px] font-semibold">Generado</span>}
+          </div>
           <div className="space-y-1.5 text-xs text-slate-600">
-            <p><strong>Tipo:</strong> {tipo}</p>
-            <p><strong>Período:</strong> {periodo}</p>
-            <p><strong>Formato:</strong> {formato}</p>
-            <p><strong>Cobertura:</strong> {coberturaActual}</p>
-            {lastReporteId && <p><strong>Último ID:</strong> #{lastReporteId}</p>}
+            <p><strong>Tipo:</strong> {lastReporte?.tipo ?? tipo}</p>
+            <p><strong>Período:</strong> {lastReporte?.periodo ?? periodo}</p>
+            <p><strong>Formato:</strong> {lastReporte?.formato ?? formato}</p>
+            <p><strong>Cobertura:</strong> {lastReporte?.cobertura ?? coberturaActual}</p>
+            {lastReporte && (
+              <>
+                <p><strong>Contratos analizados:</strong> {lastReporte.contratosAnalizados.toLocaleString('es-CO')}</p>
+                <p><strong>Alertas incluidas:</strong> {lastReporte.alertasIncluidas.toLocaleString('es-CO')}</p>
+                <p><strong>Analizado con IA:</strong> {lastReporte.analizadoConIA ? 'Sí' : 'No'}</p>
+                <p><strong>Último ID:</strong> #{lastReporte.id}</p>
+              </>
+            )}
           </div>
           <ScoreCircle score={Math.round(stats?.riesgoPromedio ?? 0)} size="md" />
           <div>
@@ -539,8 +544,8 @@ export function ReportesPage() {
               {descargando ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
               {descargando
                 ? 'Descargando...'
-                : lastReporteId
-                  ? `Descargar reporte #${lastReporteId}`
+                : lastReporte
+                  ? `Descargar reporte #${lastReporte.id}`
                   : 'Descargar Excel consolidado'}
             </button>
             <button

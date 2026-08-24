@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import { AlertTriangle, Download, RotateCcw } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { AlertTriangle, Download, RotateCcw, Search } from 'lucide-react'
 import type { Core } from 'cytoscape'
 import { cn } from '@/utils/helpers'
 import { exportarGrafo } from '@/utils/export-grafo'
-import { ENTIDADES_DISPONIBLES } from '@/services/relaciones.service'
+import { useDebounce } from '@/hooks/useDebounce'
+import { entidadesService } from '@/services/entidades.service'
 import type { FiltrosGrafo } from '@/types/relacion.types'
 
 interface Props {
@@ -12,23 +14,22 @@ interface Props {
   onReset: () => void
   cy: Core | null
   alertasAlto?: number
+  entidadNombre?: string
 }
 
 const TIPOS: Array<{ value: FiltrosGrafo['tipo_relacion']; label: string }> = [
   { value: 'todos', label: 'Todas las relaciones' },
-  { value: 'adjudico', label: 'Adjudicación' },
-  { value: 'ejecutado_por', label: 'Ejecutado por' },
-  { value: 'representante_legal', label: 'Representante legal' },
-  { value: 'miembro_de', label: 'Miembro de UT' },
-  { value: 'sancionado', label: 'Sanción' },
-  { value: 'alerta', label: 'Alertas PEP' },
+  { value: 'contrato', label: 'Adjudicación de contrato' },
+  { value: 'rep_legal', label: 'Representante legal' },
+  { value: 'socio', label: 'Socio' },
+  { value: 'sancion', label: 'Sanción' },
 ]
 
 const PERIODOS: Array<{ value: FiltrosGrafo['periodo']; label: string }> = [
+  { value: '1m', label: 'Último mes' },
   { value: '3m', label: 'Últimos 3 meses' },
   { value: '6m', label: 'Últimos 6 meses' },
   { value: '12m', label: 'Últimos 12 meses' },
-  { value: '24m', label: 'Últimos 24 meses' },
   { value: 'todos', label: 'Todo el histórico' },
 ]
 
@@ -39,7 +40,7 @@ const RIESGOS: Array<{ value: FiltrosGrafo['nivel_riesgo']; label: string }> = [
   { value: 'bajo', label: 'Riesgo bajo' },
 ]
 
-export function FiltrosBar({ filtros, onChange, onReset, cy, alertasAlto }: Props) {
+export function FiltrosBar({ filtros, onChange, onReset, cy, alertasAlto, entidadNombre }: Props) {
   const [exportando, setExportando] = useState<'png' | 'pdf' | null>(null)
 
   async function handleExport(formato: 'png' | 'pdf') {
@@ -53,11 +54,10 @@ export function FiltrosBar({ filtros, onChange, onReset, cy, alertasAlto }: Prop
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-3 flex flex-wrap items-center gap-2">
-      <Select
-        label="Entidad"
-        value={filtros.entidad_id}
-        onChange={(v) => onChange({ entidad_id: v })}
-        options={ENTIDADES_DISPONIBLES.map((e) => ({ value: e.id, label: e.label }))}
+      <EntidadPicker
+        key={entidadNombre ?? 'none'}
+        entidadNombre={entidadNombre}
+        onSelect={(nit) => onChange({ entidad_id: nit })}
       />
       <Select
         label="Relación"
@@ -110,6 +110,72 @@ export function FiltrosBar({ filtros, onChange, onReset, cy, alertasAlto }: Prop
           <Download className="w-3.5 h-3.5" /> {exportando === 'pdf' ? 'Generando…' : 'Exportar grafo'}
         </button>
       </div>
+    </div>
+  )
+}
+
+interface EntidadPickerProps {
+  entidadNombre?: string
+  onSelect: (nit: string, nombre: string) => void
+}
+
+function EntidadPicker({ entidadNombre, onSelect }: EntidadPickerProps) {
+  const [query, setQuery] = useState(entidadNombre ?? '')
+  const [open, setOpen] = useState(false)
+  const debouncedQuery = useDebounce(query, 350)
+
+  const { data, isFetching } = useQuery({
+    queryKey: ['entidades-grafo-picker', debouncedQuery],
+    queryFn: () => entidadesService.getEntidades({ search: debouncedQuery }),
+    enabled: open && debouncedQuery.trim().length >= 2,
+  })
+
+  const resultados = data?.data.slice(0, 20) ?? []
+
+  return (
+    <div className="relative">
+      <label className="flex items-center gap-1.5 text-xs">
+        <span className="font-medium uppercase tracking-wide text-slate-400">Entidad</span>
+        <span className="relative">
+          <Search className="pointer-events-none absolute left-2 top-1/2 w-3.5 h-3.5 -translate-y-1/2 text-slate-400" />
+          <input
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setOpen(true)
+            }}
+            onFocus={() => setOpen(true)}
+            onBlur={() => setTimeout(() => setOpen(false), 150)}
+            placeholder="Buscar entidad por nombre o NIT..."
+            className="w-64 rounded-md border border-slate-200 bg-white py-1.5 pl-7 pr-2 text-xs text-slate-700 hover:border-slate-300 focus:border-blue-500 focus:outline-none"
+          />
+        </span>
+      </label>
+      {open && debouncedQuery.trim().length >= 2 && (
+        <ul className="absolute left-0 z-40 mt-1 max-h-64 w-80 overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+          {isFetching && <li className="px-3 py-2 text-xs text-slate-400">Buscando…</li>}
+          {!isFetching && resultados.length === 0 && (
+            <li className="px-3 py-2 text-xs text-slate-400">Sin coincidencias</li>
+          )}
+          {resultados.map((e) => (
+            <li key={e.nit}>
+              <button
+                type="button"
+                onMouseDown={(evt) => evt.preventDefault()}
+                onClick={() => {
+                  onSelect(e.nit, e.nombre)
+                  setQuery(e.nombre)
+                  setOpen(false)
+                }}
+                className="block w-full px-3 py-1.5 text-left text-xs text-slate-700 hover:bg-blue-50"
+              >
+                <span className="font-medium">{e.nombre}</span>
+                {e.departamento && <span className="ml-1.5 text-slate-400">· {e.departamento}</span>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }

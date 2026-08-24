@@ -11,10 +11,11 @@ import { useEntidades } from '@/hooks/useEntidades'
 import { useFiltersStore } from '@/store/filters.store'
 import { DEPARTAMENTOS, MODALIDADES, RISK_COLORS } from '@/utils/constants'
 import { formatCurrency } from '@/utils/formatters'
+import { flagLabel } from '@/services/alertas.service'
 import type { Contrato } from '@/types/contrato.types'
 
 
-const MOCK_STATS = { totalContratos: 1248, riesgoAlto: 86, riesgoMedio: 241, entidadesMonitoreadas: 132, distribucionRiesgo: { critico: 12, alto: 74, medio: 241, bajo: 921 } }
+const MOCK_STATS = { totalContratos: 1248, riesgoAlto: 86, riesgoMedio: 241, entidadesMonitoreadas: 132, scorePromedio: 34, distribucionRiesgo: { critico: 12, alto: 74, medio: 241, bajo: 921 } }
 const MOCK_CONTRATOS: Contrato[] = [
   { id: '1', idProceso: 'SN-2024-001234', entidad: 'Alcaldía de Bogotá', departamento: 'Cundinamarca', municipio: 'Bogotá', procedimiento: 'Obra pública vías', modalidad: 'Licitación Pública', objeto: 'Construcción vías terciarias', valorBase: 4500000000, estado: 'PUBLICADO', fechaPublicacion: '2024-01-15', riesgo: 'ALTO', scoreRiesgo: 82, senalesDetectadas: ['Precio inusual', 'Restricción competencia'], tieneAlertas: true },
   { id: '2', idProceso: 'SN-2024-002891', entidad: 'Gobernación Antioquia', departamento: 'Antioquia', municipio: 'Medellín', procedimiento: 'Suministro equipos', modalidad: 'Selección Abreviada', objeto: 'Adquisición equipos médicos', valorBase: 1200000000, estado: 'ADJUDICADO', fechaPublicacion: '2024-02-01', riesgo: 'CRÍTICO', scoreRiesgo: 91, senalesDetectadas: ['Proponente único', 'Urgencia no justificada'], tieneAlertas: true },
@@ -60,7 +61,7 @@ export function DashboardPage() {
       <span className="w-8 h-8 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style={{ backgroundColor: RISK_COLORS[(item as Contrato).riesgo] }}>{String(v)}</span>
     )},
     { key: 'riesgo', header: 'Riesgo', accessor: (c) => c.riesgo, render: (v) => <RiskBadge level={v as Contrato['riesgo']} size="sm" /> },
-    { key: 'senales', header: 'Señales', accessor: (c) => c.senalesDetectadas.length, render: (v) => <span className="px-2 py-0.5 bg-orange-50 text-orange-700 rounded text-xs font-semibold">{String(v)}</span> },
+    { key: 'senales', header: 'Señales', accessor: (c) => c.numSenales ?? c.senalesDetectadas.length, render: (v) => <span className="px-2 py-0.5 bg-orange-50 text-orange-700 rounded text-xs font-semibold">{String(v)}</span> },
     { key: 'accion', header: '', accessor: () => '', render: (_, item) => (
       <button onClick={(e) => { e.stopPropagation(); setSelectedContrato(item) }} className="p-1.5 rounded hover:bg-slate-100">
         <Eye className="w-4 h-4 text-slate-500" />
@@ -85,9 +86,9 @@ export function DashboardPage() {
 
         {statsLoading ? <LoadingSpinner /> : (
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-            <KPICard title="Contratos analizados" value={displayStats.totalContratos} trend={3.2} trendLabel="vs mes ant." icon={FileText} iconBg="bg-blue-50" iconColor="text-blue-500" />
-            <KPICard title="Riesgo alto" value={displayStats.riesgoAlto} trend={-1.8} icon={AlertTriangle} iconBg="bg-red-50" iconColor="text-red-500" valueColor="text-red-600" />
-            <KPICard title="Riesgo medio" value={displayStats.riesgoMedio} trend={2.1} icon={Clock} iconBg="bg-orange-50" iconColor="text-orange-500" valueColor="text-orange-600" />
+            <KPICard title="Contratos analizados" value={displayStats.totalContratos} icon={FileText} iconBg="bg-blue-50" iconColor="text-blue-500" />
+            <KPICard title="Riesgo alto" value={displayStats.riesgoAlto} icon={AlertTriangle} iconBg="bg-red-50" iconColor="text-red-500" valueColor="text-red-600" />
+            <KPICard title="Riesgo medio" value={displayStats.riesgoMedio} icon={Clock} iconBg="bg-orange-50" iconColor="text-orange-500" valueColor="text-orange-600" />
             <KPICard title="Entidades monitoreadas" value={totalEntidades} icon={Building2} iconBg="bg-green-50" iconColor="text-green-500" />
           </div>
         )}
@@ -209,13 +210,10 @@ export function DashboardPage() {
           <div className="p-3 bg-slate-50 rounded-xl">
             <div className="flex items-center gap-2 mb-1">
               <TrendingUp className="w-3.5 h-3.5 text-slate-500" />
-              <p className="text-xs font-semibold text-slate-500">Score promedio del período</p>
+              <p className="text-xs font-semibold text-slate-500">Score promedio general</p>
             </div>
             {(() => {
-              const total = displayStats.distribucionRiesgo.critico + displayStats.distribucionRiesgo.alto + displayStats.distribucionRiesgo.medio + displayStats.distribucionRiesgo.bajo
-              const avgScore = total > 0
-                ? Math.round((displayStats.distribucionRiesgo.critico * 90 + displayStats.distribucionRiesgo.alto * 75 + displayStats.distribucionRiesgo.medio * 50 + displayStats.distribucionRiesgo.bajo * 20) / total)
-                : 0
+              const avgScore = displayStats.scorePromedio
               const scoreColor = avgScore >= 70 ? '#DC2626' : avgScore >= 50 ? '#F59E0B' : '#10B981'
               return (
                 <div className="flex items-end gap-2">
@@ -263,15 +261,20 @@ export function DashboardPage() {
             <div>
               <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Señales detectadas</p>
               <div className="space-y-1.5">
-                {selectedContrato.senalesDetectadas.length > 0
-                  ? selectedContrato.senalesDetectadas.map((s, i) => (
+                {selectedContrato.senalesDetectadas.length > 0 ? (
+                  selectedContrato.senalesDetectadas.map((s, i) => (
                     <div key={i} className="flex items-start gap-2 text-xs text-slate-600">
                       <span className="mt-0.5 w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />
-                      {s}
+                      {flagLabel(s)}
                     </div>
                   ))
-                  : <p className="text-xs text-slate-400">Sin señales detectadas</p>
-                }
+                ) : (selectedContrato.numSenales ?? 0) > 0 ? (
+                  <p className="text-xs text-slate-500">
+                    {selectedContrato.numSenales} señal(es) detectadas — ábrelo en Análisis IA para ver el detalle.
+                  </p>
+                ) : (
+                  <p className="text-xs text-slate-400">Sin señales detectadas</p>
+                )}
               </div>
             </div>
             <div className="space-y-1.5 text-xs text-slate-500">
@@ -285,7 +288,7 @@ export function DashboardPage() {
             </div>
             <div className="pt-2 border-t border-slate-100">
               <a
-                href="https://community.secop.gov.co/STS/Users/Login/Index?SkinName=CCE&currentLanguage=es-CO&Page=login&Country=CO"
+                href={`https://community.secop.gov.co/Public/Tendering/OpportunityDetail/Index?noticeGuid=${selectedContrato.id}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full flex items-center justify-center gap-2 py-2 border border-slate-200 text-slate-600 text-xs rounded-lg font-medium hover:bg-slate-50"

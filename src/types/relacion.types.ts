@@ -1,36 +1,26 @@
-export type TipoNodo =
-  | 'entidad'
-  | 'proveedor'
-  | 'contrato'
-  | 'persona'
-  | 'consorcio'
-  | 'sancion'
-  | 'pep'
+export type TipoNodo = 'entidad' | 'proveedor' | 'persona' | 'sancion'
 
 export type NivelRiesgoGrafo = 'alto' | 'medio' | 'bajo'
 
-export type TipoArista =
-  | 'adjudico'
-  | 'ejecutado_por'
-  | 'representante_legal'
-  | 'miembro_de'
-  | 'sancionado'
-  | 'alerta'
+export type TipoArista = 'contrato' | 'representante_legal' | 'socio' | 'sancion'
+
+export type TipoRelacionFiltro = 'todos' | 'contrato' | 'rep_legal' | 'socio' | 'sancion'
 
 export interface NodoMetadata {
   nit?: string
   cedula?: string
   ciudad?: string
+  departamento?: string
   sector?: string
   rol?: string
-  pep?: boolean
+  es_pep?: boolean
   valor?: number
   valor_total?: number
+  total_contratos?: number
   monto?: number
   objeto?: string
   fecha?: string
   fuente?: string
-  miembros?: string[]
 }
 
 export interface NodoGrafo {
@@ -56,14 +46,13 @@ export interface GrafoData {
   stats: {
     total_nodos: number
     total_aristas: number
-    valor_total_contratos: number
     alertas_alto_riesgo: number
   }
 }
 
 export interface FiltrosGrafo {
   entidad_id: string
-  tipo_relacion: 'todos' | TipoArista
-  periodo: '3m' | '6m' | '12m' | '24m' | 'todos'
+  tipo_relacion: TipoRelacionFiltro
+  periodo: '1m' | '3m' | '6m' | '12m' | 'todos'
   nivel_riesgo: 'todos' | NivelRiesgoGrafo
 }

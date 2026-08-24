@@ -1,4 +1,4 @@
-import { format, parseISO } from 'date-fns'
+import { format, formatDistanceToNow, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 
 export function formatCurrency(value: number): string {
@@ -27,6 +27,20 @@ export function formatDateLong(dateStr: string): string {
     return format(parseISO(dateStr), "d 'de' MMMM 'de' yyyy", { locale: es })
   } catch {
     return dateStr
+  }
+}
+
+export function formatTimestamp(value?: string): string {
+  if (!value) return '—'
+  return formatDate(value, 'dd/MM/yyyy, HH:mm')
+}
+
+export function formatRelativeTime(value?: string | null): string {
+  if (!value) return '—'
+  try {
+    return formatDistanceToNow(parseISO(value), { locale: es, addSuffix: true })
+  } catch {
+    return '—'
   }
 }
 

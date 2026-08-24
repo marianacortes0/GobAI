@@ -11,6 +11,10 @@ export interface Reporte {
   cobertura?: string
   fechaGeneracion: string
   usuarioNombre?: string
+  descargas: number
+  contratosAnalizados: number
+  alertasIncluidas: number
+  analizadoConIA: boolean
 }
 
 export interface ReporteCreate {
@@ -26,4 +30,27 @@ export interface ReporteStats {
   programados: number
   descargas: number
   riesgoPromedio: number
+}
+
+export interface IndicadorSenal {
+  tipoFlag: string
+  label: string
+  count: number
+  percentage: number
+}
+
+export interface AlertaPorEntidad {
+  entidad: string
+  count: number
+}
+
+export interface PuntoRiesgoSemanal {
+  semana: string
+  scorePromedio: number
+}
+
+export interface ReporteAnalitica {
+  indicadoresSenales: IndicadorSenal[]
+  alertasPorEntidad: AlertaPorEntidad[]
+  evolucionRiesgo: PuntoRiesgoSemanal[]
 }

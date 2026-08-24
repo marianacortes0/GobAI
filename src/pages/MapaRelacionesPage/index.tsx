@@ -42,17 +42,26 @@ export function MapaRelacionesPage() {
         onReset={resetFiltros}
         cy={cy}
         alertasAlto={data?.stats?.alertas_alto_riesgo}
+        entidadNombre={data?.entidad_central?.nombre}
       />
 
       <div className="relative h-[calc(100vh-13rem)] overflow-hidden rounded-2xl border border-slate-600 bg-[#1E3251] shadow-lg">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,rgba(96,165,250,0.18),transparent_65%)]" />
 
-        {isError ? (
+        {!filtros.entidad_id ? (
+          <EstadoVacio
+            titulo="Elige una entidad"
+            mensaje="Busca una entidad por nombre en el filtro superior para construir su grafo de relaciones."
+          />
+        ) : isError ? (
           <EstadoError onRetry={() => refetch()} />
         ) : isLoading || !data ? (
           <SkeletonGrafo />
-        ) : data.nodos.length === 0 ? (
-          <EstadoVacio />
+        ) : data.nodos.length <= 1 ? (
+          <EstadoVacio
+            titulo="Sin relaciones registradas"
+            mensaje="No se encontraron proveedores, personas o sanciones vinculados a esta entidad con los filtros actuales."
+          />
         ) : (
           <GrafoCytoscape data={data} onNodeClick={setNodoSeleccionado} onCyReady={handleCyReady} />
         )}

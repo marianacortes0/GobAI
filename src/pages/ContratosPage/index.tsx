@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { FileText, CheckCircle, Loader, AlertTriangle, ExternalLink, DollarSign, ShieldAlert, Bell } from 'lucide-react'
 import { KPICard } from '@/components/common/KPICard'
 import { SearchBox } from '@/components/common/SearchBox'
@@ -11,6 +12,7 @@ import { useDebounce } from '@/hooks/useDebounce'
 import { useFiltersStore } from '@/store/filters.store'
 import { RISK_COLORS } from '@/utils/constants'
 import { formatCurrency, formatDate } from '@/utils/formatters'
+import { flagLabel } from '@/services/alertas.service'
 import type { Contrato } from '@/types/contrato.types'
 
 const MOCK_CONTRATOS: Contrato[] = [
@@ -24,6 +26,7 @@ const MOCK_CONTRATOS: Contrato[] = [
 type TabId = 'todos' | 'alto' | 'alertas' | 'adjudicados'
 
 export function ContratosPage() {
+  const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState<TabId>('todos')
   const [selected, setSelected] = useState<Contrato | null>(null)
@@ -269,25 +272,34 @@ export function ContratosPage() {
               <p><strong>Valor:</strong> {formatCurrency(selected.valorBase)}</p>
               <p><strong>Publicación:</strong> {formatDate(selected.fechaPublicacion)}</p>
             </div>
-            {selected.senalesDetectadas.length > 0 && (
+            {(selected.senalesDetectadas.length > 0 || (selected.numSenales ?? 0) > 0) && (
               <div>
                 <p className="text-xs font-semibold text-slate-500 uppercase mb-1.5">Señales</p>
                 <div className="space-y-1">
-                  {selected.senalesDetectadas.map((s, i) => (
-                    <div key={i} className="flex items-start gap-2 text-xs text-slate-600">
-                      <span className="mt-0.5 w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />
-                      {s}
-                    </div>
-                  ))}
+                  {selected.senalesDetectadas.length > 0 ? (
+                    selected.senalesDetectadas.map((s, i) => (
+                      <div key={i} className="flex items-start gap-2 text-xs text-slate-600">
+                        <span className="mt-0.5 w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />
+                        {flagLabel(s)}
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-slate-500">
+                      {selected.numSenales} señal(es) detectadas — ábrelo en Análisis IA para ver el detalle.
+                    </p>
+                  )}
                 </div>
               </div>
             )}
             <div className="space-y-2 pt-2 border-t border-slate-100">
-              <button className="w-full flex items-center justify-center gap-2 py-2 bg-blue-600 text-white text-xs rounded-lg font-medium hover:bg-blue-700">
+              <button
+                onClick={() => navigate(`/analisis/${encodeURIComponent(selected.id)}`)}
+                className="w-full flex items-center justify-center gap-2 py-2 bg-blue-600 text-white text-xs rounded-lg font-medium hover:bg-blue-700"
+              >
                 Analizar con IA
               </button>
               <a
-                href="https://community.secop.gov.co/STS/Users/Login/Index?SkinName=CCE&currentLanguage=es-CO&Page=login&Country=CO"
+                href={`https://community.secop.gov.co/Public/Tendering/OpportunityDetail/Index?noticeGuid=${selected.id}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full flex items-center justify-center gap-2 py-2 border border-slate-200 text-slate-600 text-xs rounded-lg font-medium hover:bg-slate-50"

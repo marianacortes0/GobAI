@@ -1,6 +1,7 @@
 import api from './api'
 import type { Contrato, ContratoDetalle, ContractSummary } from '@/types/contrato.types'
 import type { Filters, PaginatedResponse } from '@/types/shared.types'
+import { riesgoFromScore } from './alertas.service'
 
 type BackendContract = {
   id_contrato: string
@@ -12,6 +13,7 @@ type BackendContract = {
   score_final: number
   categoria_riesgo: string
   fecha_publicacion: string | null
+  num_senales?: number
 }
 
 type BackendContractDetail = {
@@ -47,9 +49,10 @@ function mapContract(c: BackendContract): Contrato {
     valorBase: c.precio_base ?? 0,
     estado: 'PUBLICADO',
     fechaPublicacion: c.fecha_publicacion ?? '',
-    riesgo: (c.categoria_riesgo === 'DESCONOCIDO' ? 'BAJO' : c.categoria_riesgo) as Contrato['riesgo'],
+    riesgo: riesgoFromScore(c.score_final ?? 0, c.categoria_riesgo),
     scoreRiesgo: c.score_final ?? 0,
     senalesDetectadas: [],
+    numSenales: c.num_senales ?? 0,
     tieneAlertas: (c.score_final ?? 0) >= 50,
   }
 }
@@ -106,9 +109,7 @@ export const contratosService = {
       valorBase: data.precio_base ?? 0,
       estado: 'PUBLICADO',
       fechaPublicacion: data.fecha_publicacion ?? '',
-      riesgo: (data.riesgo?.categoria_riesgo === 'DESCONOCIDO'
-        ? 'BAJO'
-        : data.riesgo?.categoria_riesgo) as ContratoDetalle['riesgo'],
+      riesgo: riesgoFromScore(data.riesgo?.score_final ?? 0, data.riesgo?.categoria_riesgo ?? 'DESCONOCIDO'),
       scoreRiesgo: data.riesgo?.score_final ?? 0,
       senalesDetectadas: (data.flags ?? []).filter(f => f.valor).map(f => f.tipo_flag),
       tieneAlertas: (data.riesgo?.score_final ?? 0) >= 50,
@@ -116,9 +117,7 @@ export const contratosService = {
       evaluacion: data.riesgo
         ? {
             score: data.riesgo.score_final,
-            riesgo: (data.riesgo.categoria_riesgo === 'DESCONOCIDO'
-              ? 'BAJO'
-              : data.riesgo.categoria_riesgo) as ContratoDetalle['riesgo'],
+            riesgo: riesgoFromScore(data.riesgo.score_final, data.riesgo.categoria_riesgo),
             resumen: data.riesgo.evidencia,
             hallazgos: [],
             recomendaciones: [],

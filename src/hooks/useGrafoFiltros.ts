@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import type { FiltrosGrafo } from '@/types/relacion.types'
 
 const DEFAULTS: FiltrosGrafo = {
-  entidad_id: 'ent-001',
+  entidad_id: '',
   tipo_relacion: 'todos',
   periodo: '12m',
   nivel_riesgo: 'todos',

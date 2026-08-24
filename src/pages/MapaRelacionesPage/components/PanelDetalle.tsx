@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, AlertTriangle, FileText, Users, Building2, Triangle, Star, Network } from 'lucide-react'
+import { X, AlertTriangle, Users, Building2, Triangle } from 'lucide-react'
 import type { JSX } from 'react'
 import { formatCurrency, formatDate, formatNumber } from '@/utils/formatters'
 import type { GrafoData, NodoGrafo, TipoNodo } from '@/types/relacion.types'
@@ -16,11 +16,8 @@ type Tab = typeof TABS[number]
 const ICONOS: Record<TipoNodo, JSX.Element> = {
   entidad: <Building2 className="w-4 h-4" />,
   proveedor: <Building2 className="w-4 h-4" />,
-  contrato: <FileText className="w-4 h-4" />,
   persona: <Users className="w-4 h-4" />,
-  consorcio: <Network className="w-4 h-4" />,
   sancion: <Triangle className="w-4 h-4" />,
-  pep: <Star className="w-4 h-4" />,
 }
 
 export function PanelDetalle({ nodo, contexto, onClose }: Props) {
@@ -102,15 +99,18 @@ function Informacion({ nodo }: { nodo: NodoGrafo }) {
   const filas: Array<[string, string]> = []
   if (meta.nit) filas.push(['NIT', meta.nit])
   if (meta.cedula) filas.push(['Cédula', meta.cedula])
+  if (meta.departamento) filas.push(['Departamento', meta.departamento])
   if (meta.ciudad) filas.push(['Ciudad', meta.ciudad])
   if (meta.sector) filas.push(['Sector', meta.sector])
   if (meta.rol) filas.push(['Rol', meta.rol])
+  if (meta.total_contratos !== undefined) filas.push(['Contratos con la entidad', formatNumber(meta.total_contratos)])
   if (meta.objeto) filas.push(['Objeto', meta.objeto])
   if (meta.fecha) filas.push(['Fecha', formatDate(meta.fecha)])
   if (meta.valor !== undefined) filas.push(['Valor del contrato', formatCurrency(meta.valor)])
   if (meta.valor_total !== undefined) filas.push(['Valor adjudicado total', formatCurrency(meta.valor_total)])
   if (meta.monto !== undefined) filas.push(['Monto sanción', formatCurrency(meta.monto)])
   if (meta.fuente) filas.push(['Fuente', meta.fuente])
+  if (meta.es_pep) filas.push(['Persona expuesta políticamente', 'Sí'])
 
   if (filas.length === 0) return <p className="text-slate-500">Sin metadata adicional para este nodo.</p>
 
@@ -129,11 +129,13 @@ function Informacion({ nodo }: { nodo: NodoGrafo }) {
 function Alertas({ nodo, contexto }: { nodo: NodoGrafo; contexto?: GrafoData }) {
   const alertasRelacionadas =
     contexto?.aristas
-      .filter((a) => (a.source === nodo.id || a.target === nodo.id) && (a.tipo === 'sancionado' || a.tipo === 'alerta'))
+      .filter((a) => (a.source === nodo.id || a.target === nodo.id) && a.tipo === 'sancion')
       .map((a) => contexto.nodos.find((n) => n.id === (a.source === nodo.id ? a.target : a.source)))
       .filter(Boolean) ?? []
 
-  if (alertasRelacionadas.length === 0 && nodo.nivel_riesgo !== 'alto') {
+  const esPep = nodo.metadata?.es_pep === true
+
+  if (alertasRelacionadas.length === 0 && nodo.nivel_riesgo !== 'alto' && !esPep) {
     return <p className="text-slate-500">No hay alertas activas para este nodo.</p>
   }
 
@@ -144,6 +146,14 @@ function Alertas({ nodo, contexto }: { nodo: NodoGrafo; contexto?: GrafoData }) 
           <AlertTriangle className="mt-0.5 w-4 h-4 shrink-0" />
           <span>
             Este nodo está marcado con <strong>nivel de riesgo alto</strong>.
+          </span>
+        </li>
+      )}
+      {esPep && (
+        <li className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+          <AlertTriangle className="mt-0.5 w-4 h-4 shrink-0" />
+          <span>
+            Persona <strong>expuesta políticamente (PEP)</strong>.
           </span>
         </li>
       )}

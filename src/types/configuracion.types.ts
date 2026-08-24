@@ -3,41 +3,76 @@ export interface ConfiguracionGeneral {
   ambiente: 'PRODUCCION' | 'STAGING' | 'DESARROLLO'
   idioma: string
   zona_horaria: string
-  notificacionesEmail: boolean
-  notificacionesPush: boolean
+  modoExplicableActivado: boolean
+  registroAuditoria: boolean
 }
 
 export interface ConfiguracionDatos {
   fuenteDatos: string
+  tipoConexion: string
   frecuenciaActualizacion: string
   secopConectado: boolean
+  sincronizacionAutomatica: boolean
   ultimaSincronizacion?: string
 }
 
 export interface ConfiguracionMotorRiesgo {
-  pesoAnomaliasTextuales: number
-  pesoConcentracionProveedor: number
-  pesoUrgenciasInjustificadas: number
-  pesoFraccionamientoContratos: number
-  pesoHistorialProveedor: number
-  umbralRiesgoCritico: number
-  umbralRiesgoAlto: number
+  pesoModalidadSensible: number
+  pesoBajaCompetencia: number
+  pesoJustificacionDebil: number
+  pesoValorCercanoPrecioBase: number
+  pesoDescripcionGenerica: number
+  umbralRiesgoBajo: number
   umbralRiesgoMedio: number
+  umbralRiesgoAlto: number
 }
 
 export interface ConfiguracionIA {
   modeloPrincipal: string
-  modoAnalisis: string
+  temperatura: number
+  maxContratosPorLote: number
   entradasActivas: string[]
-  confianzaMinima: number
-  explicabilidadActiva: boolean
+  analisisTextual: boolean
+  evidenciaTextual: boolean
+  resumenesAutomaticos: boolean
 }
 
 export interface ConfiguracionAlertas {
-  alertasAutomaticas: boolean
-  emailNotificaciones: string
-  frecuenciaResumen: string
-  umbralAlertaCritica: number
+  alertasCriticas: boolean
+  riesgoAlto: boolean
+  resumenDiario: boolean
+  resumenSemanal: boolean
+  canalPrincipal: string
+  destinatarios: string
+}
+
+export interface ConfiguracionRespaldo {
+  ultimoRespaldo: string
+  frecuencia: string
+}
+
+export interface ConfiguracionHistorial {
+  cambiosRegistrados: number
+  ultimoCambio: string
+}
+
+export interface ConfiguracionSeguridad {
+  estado: 'CORRECTA' | 'ALERTA' | 'CRITICA'
+  ultimaVerificacion: string
+}
+
+export interface CambioReciente {
+  campo: string
+  valor: string
+  fecha: string
+}
+
+export interface ConfiguracionCompleta {
+  general: ConfiguracionGeneral
+  datos: ConfiguracionDatos
+  motorRiesgo: ConfiguracionMotorRiesgo
+  ia: ConfiguracionIA
+  alertas: ConfiguracionAlertas
 }
 
 export interface SystemStatus {
@@ -50,5 +85,4 @@ export interface SystemStatus {
   modeloIAActivo: boolean
   reglasActivas: number
   alertasActivas: number
-  usuariosActivos: number
 }

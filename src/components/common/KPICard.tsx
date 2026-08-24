@@ -5,6 +5,7 @@ import { cn } from '@/utils/helpers'
 interface KPICardProps {
   title: string
   value: number | string
+  subtitle?: string
   trend?: number
   trendLabel?: string
   icon?: LucideIcon
@@ -13,7 +14,7 @@ interface KPICardProps {
   valueColor?: string
 }
 
-export function KPICard({ title, value, trend, trendLabel, icon: Icon, iconBg = 'bg-blue-50', iconColor = 'text-blue-500', valueColor }: KPICardProps) {
+export function KPICard({ title, value, subtitle, trend, trendLabel, icon: Icon, iconBg = 'bg-blue-50', iconColor = 'text-blue-500', valueColor }: KPICardProps) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex flex-col gap-4">
       <div className="flex items-start justify-between">
@@ -22,6 +23,7 @@ export function KPICard({ title, value, trend, trendLabel, icon: Icon, iconBg = 
           <p className={cn('text-3xl font-bold text-slate-800', valueColor)}>
             {typeof value === 'number' ? value.toLocaleString('es-CO') : value}
           </p>
+          {subtitle && <p className="text-xs text-slate-400 mt-1">{subtitle}</p>}
         </div>
         {Icon && (
           <div className={cn('p-3 rounded-xl', iconBg)}>
